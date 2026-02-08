@@ -1,0 +1,213 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>赛博玄学矩阵</title>
+  <link rel="stylesheet" href="./common/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js" crossorigin="anonymous"></script>
+  <script src="./common/storage.js"></script>
+  <script src="./common/app.js"></script>
+  <script src="./common/immersive.js"></script>
+</head>
+<body>
+  <canvas id="matrix-bg" class="matrix-bg"></canvas>
+
+  <header class="topbar">
+    <h1 class="title">赛博玄学矩阵</h1>
+    <p class="subtitle">一处入口，直达全部模块。先配置接口，再开始占卜。</p>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>模块入口</h2>
+      <div class="entry-grid">
+        <a class="entry-card" href="./tarot/index.html">
+          <h3>神秘塔罗</h3>
+          <p>三张牌阵 + 手势解读，支持补充心声后生成结果。</p>
+        </a>
+        <a class="entry-card" href="./iching/index.html">
+          <h3>赛博易经</h3>
+          <p>握拳聚气后张手起卦，自动完成本卦与变卦解读。</p>
+        </a>
+        <a class="entry-card" href="./palmistry/index.html">
+          <h3>智能手相</h3>
+          <p>张手停稳自动采样，掌型与比例一键进入分析。</p>
+        </a>
+        <a class="entry-card" href="./face_reading/index.html">
+          <h3>智能面相</h3>
+          <p>正脸定神自动触发，三庭五眼参数即时更新。</p>
+        </a>
+        <a class="entry-card" href="./astro/index.html">
+          <h3>星盘实验室</h3>
+          <p>本命盘与合盘双模式，内置星盘可视化。</p>
+        </a>
+        <a class="entry-card" href="./history/index.html">
+          <h3>命运回响</h3>
+          <p>统一管理历史记录，支持当日多模块聚合解读。</p>
+        </a>
+        <a class="entry-card" href="./prompt_center/index.html">
+          <h3>提示词中心</h3>
+          <p>左侧选模块，右侧直接改提示词并保存生效。</p>
+        </a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>接口配置</h2>
+      <div class="grid cols-2">
+        <div>
+          <label for="api-provider">服务名称（可选）</label>
+          <input id="api-provider" placeholder="例如：深度求索 / 其他服务" />
+        </div>
+        <div>
+          <label for="api-token">接口密钥</label>
+          <input id="api-token" placeholder="请输入密钥" />
+        </div>
+        <div>
+          <label for="api-endpoint">对话接口地址</label>
+          <input id="api-endpoint" placeholder="https://api.deepseek.com/chat/completions" />
+        </div>
+        <div>
+          <label for="api-model">模型名称</label>
+          <input id="api-model" placeholder="deepseek-reasoner" />
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn primary" id="save-api">保存配置</button>
+        <button class="btn" id="clear-api">清空密钥</button>
+        <button class="btn" id="grant-camera">初始化摄像头权限</button>
+      </div>
+      <div id="api-status" class="status"></div>
+    </section>
+
+    <section class="card" id="startup-check">
+      <h2>启动检查</h2>
+      <div class="kv" id="quick-stats"></div>
+      <div class="controls">
+        <button class="btn" id="refresh-stats">刷新状态</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const providerEl = MM.$("api-provider");
+    const tokenEl = MM.$("api-token");
+    const endpointEl = MM.$("api-endpoint");
+    const modelEl = MM.$("api-model");
+    const statusEl = MM.$("api-status");
+    const statsEl = MM.$("quick-stats");
+
+    function renderStats() {
+      const all = MM.getAllRecords();
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const today = all.filter((r) => String(r.timestamp || "").startsWith(todayKey));
+      const lines = [
+        `记录总数：${all.length}`,
+        `今日记录：${today.length}`,
+        `接口密钥：${MM.getToken() ? "已配置" : "未配置"}`,
+        `接口地址：${MM.getApiBaseUrl()}`,
+        `模型：${MM.getApiModel()}`
+      ];
+      statsEl.innerHTML = "";
+      lines.forEach((line) => {
+        const row = document.createElement("div");
+        row.className = "kv-item";
+        row.textContent = line;
+        statsEl.appendChild(row);
+      });
+    }
+
+    async function hydrate() {
+      await MM.ready;
+      providerEl.value = MM.getApiProvider();
+      tokenEl.value = MM.getToken();
+      endpointEl.value = MM.getApiBaseUrl();
+      modelEl.value = MM.getApiModel();
+      renderStats();
+    }
+
+    MM.$("save-api").addEventListener("click", () => {
+      MM.setApiProvider(providerEl.value.trim());
+      MM.setToken(tokenEl.value.trim());
+      MM.setApiBaseUrl(endpointEl.value.trim());
+      MM.setApiModel(modelEl.value.trim());
+      MM.status(statusEl, "接口配置已保存，下次启动仍有效", "ok");
+      renderStats();
+    });
+
+    MM.$("clear-api").addEventListener("click", () => {
+      MM.setToken("");
+      tokenEl.value = "";
+      MM.status(statusEl, "接口密钥已清空", "ok");
+      renderStats();
+    });
+
+    MM.$("grant-camera").addEventListener("click", async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        stream.getTracks().forEach((track) => track.stop());
+        MM.status(statusEl, "摄像头权限初始化完成，后续模块将复用授权", "ok");
+      } catch (err) {
+        MM.status(statusEl, `摄像头权限初始化失败：${err.message || err}`, "error");
+      }
+    });
+
+    MM.$("refresh-stats").addEventListener("click", renderStats);
+
+    function initMatrixBackground() {
+      const canvas = document.getElementById("matrix-bg");
+      const ctx = canvas.getContext("2d", { alpha: true });
+      let width = 0;
+      let height = 0;
+      let cols = 0;
+      let drops = [];
+      const chars = "乾坤震巽坎离艮兑金木水火土日月星辰阴阳命理玄";
+      const fontSize = 16;
+
+      function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        cols = Math.max(1, Math.floor(width / fontSize));
+        drops = Array.from({ length: cols }, () => Math.random() * -30);
+      }
+
+      let lastTime = 0;
+      function draw(now) {
+        if (now - lastTime < 40) {
+          requestAnimationFrame(draw);
+          return;
+        }
+        lastTime = now;
+
+        ctx.fillStyle = "rgba(5, 10, 26, 0.16)";
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.font = `${fontSize}px 'PingFang SC', 'Microsoft YaHei', sans-serif`;
+        for (let i = 0; i < cols; i += 1) {
+          const char = chars[Math.floor(Math.random() * chars.length)];
+          const x = i * fontSize;
+          const y = drops[i] * fontSize;
+          const alpha = 0.25 + Math.random() * 0.45;
+          ctx.fillStyle = `rgba(130, 215, 255, ${alpha})`;
+          ctx.fillText(char, x, y);
+
+          if (y > height + Math.random() * 120) {
+            drops[i] = Math.random() * -20;
+          }
+          drops[i] += 0.72;
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener("resize", resize);
+      resize();
+      requestAnimationFrame(draw);
+    }
+
+    hydrate();
+    initMatrixBackground();
+  </script>
+</body>
+</html>

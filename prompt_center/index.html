@@ -1,0 +1,137 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>提示词中心</title>
+  <link rel="stylesheet" href="../common/styles.css" />
+  <script src="../common/storage.js"></script>
+  <script src="../common/app.js"></script>
+  <script src="../common/immersive.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="title">提示词中心</h1>
+    <div class="module-entry">
+      <a href="../index.html">返回首页</a>
+      <a href="../tarot/index.html">神秘塔罗</a>
+      <a href="../iching/index.html">赛博易经</a>
+      <a href="../palmistry/index.html">智能手相</a>
+      <a href="../face_reading/index.html">智能面相</a>
+      <a href="../astro/index.html">星盘实验室</a>
+      <a href="../history/index.html">命运回响</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card panel-split">
+      <aside>
+        <h2>模块列表</h2>
+        <div class="module-list" id="module-list"></div>
+      </aside>
+
+      <section>
+        <div class="editor-title" id="editor-title">提示词</div>
+        <label for="prompt-editor">系统提示词</label>
+        <textarea id="prompt-editor"></textarea>
+        <div class="controls">
+          <button class="btn primary" id="save-btn">保存并生效</button>
+          <button class="btn" id="reset-btn">恢复默认</button>
+        </div>
+        <div class="status" id="status"></div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const modules = [
+      { key: "tarot", label: "神秘塔罗", source: "../tarot/prompts.js" },
+      { key: "iching", label: "赛博易经", source: "../iching/prompts.js" },
+      { key: "palmistry", label: "智能手相", source: "../palmistry/prompts.js" },
+      { key: "face", label: "智能面相", source: "../face_reading/prompts.js" },
+      { key: "astro", label: "星盘实验室", source: "../astro/prompts.js" },
+      { key: "history", label: "命运聚合", source: null }
+    ];
+
+    const defaultHistoryPrompt = [
+      "你是赛博玄学矩阵的总分析师，负责将同一天的多模块占卜结果融合成可执行的生活策略。",
+      "先提炼每条记录的核心信号（风险、机会、情绪、行动倾向），再做跨模块交叉验证，明确一致项与冲突项。",
+      "输出必须包含：一、今日总运势；二、事业/财运/情感/健康四板块；三、冲突信号说明；四、24小时行动清单；五、禁忌与止损建议。",
+      "每个板块都要给出优先级（高/中/低）和时间窗口（上午/下午/夜间），避免空泛结论。",
+      "若结论冲突，必须说明冲突来源并给出折中策略。语言保持仪式感，但建议必须落地、可执行。"
+    ].join("\n");
+    const defaults = {};
+    let activeKey = modules[0].key;
+
+    const listEl = MM.$("module-list");
+    const editorEl = MM.$("prompt-editor");
+    const titleEl = MM.$("editor-title");
+    const statusEl = MM.$("status");
+
+    function extractSystemPrompt(rawJs) {
+      const match = rawJs.match(/system\s*:\s*`([\s\S]*?)`,/);
+      return match ? match[1] : "";
+    }
+
+    async function loadDefaultPrompt(moduleItem) {
+      if (!moduleItem.source) return defaultHistoryPrompt;
+      const res = await fetch(moduleItem.source, { cache: "no-store" });
+      if (!res.ok) return "";
+      const raw = await res.text();
+      return extractSystemPrompt(raw);
+    }
+
+    function getModuleByKey(key) {
+      return modules.find((item) => item.key === key) || modules[0];
+    }
+
+    function renderModuleList() {
+      listEl.innerHTML = "";
+      modules.forEach((mod) => {
+        const btn = document.createElement("button");
+        btn.className = `module-item${mod.key === activeKey ? " active" : ""}`;
+        btn.textContent = mod.label;
+        btn.addEventListener("click", () => {
+          activeKey = mod.key;
+          renderModuleList();
+          renderEditor();
+        });
+        listEl.appendChild(btn);
+      });
+    }
+
+    function renderEditor() {
+      const mod = getModuleByKey(activeKey);
+      const custom = MM.getPromptOverride(activeKey);
+      editorEl.value = custom || defaults[activeKey] || "";
+      titleEl.textContent = `${mod.label} · 系统提示词`;
+    }
+
+    MM.$("save-btn").addEventListener("click", () => {
+      MM.setPromptOverride(activeKey, editorEl.value);
+      MM.status(statusEl, "提示词已保存，下次调用立即生效", "ok");
+    });
+
+    MM.$("reset-btn").addEventListener("click", () => {
+      MM.clearPromptOverride(activeKey);
+      renderEditor();
+      MM.status(statusEl, "已恢复默认提示词", "ok");
+    });
+
+    async function init() {
+      await MM.ready;
+      for (const mod of modules) {
+        try {
+          defaults[mod.key] = await loadDefaultPrompt(mod);
+        } catch {
+          defaults[mod.key] = "";
+        }
+      }
+      renderModuleList();
+      renderEditor();
+    }
+
+    init();
+  </script>
+</body>
+</html>

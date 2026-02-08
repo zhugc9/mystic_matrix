@@ -1,0 +1,807 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>赛博易经</title>
+  <link rel="stylesheet" href="../common/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="../common/storage.js"></script>
+  <script src="../common/app.js"></script>
+  <script src="../common/immersive.js"></script>
+  <script src="./prompts.js"></script>
+  <style>
+    .coin-stage {
+      border: 1px solid rgba(198, 168, 114, 0.35);
+      border-radius: 14px;
+      background: radial-gradient(circle at 50% 30%, rgba(197, 147, 72, 0.16), rgba(31, 23, 14, 0.84));
+      padding: 16px;
+      min-height: 130px;
+    }
+
+    .coin-wrap {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      min-height: 72px;
+      align-items: center;
+    }
+
+    .coin {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid rgba(240, 206, 137, 0.72);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      background: linear-gradient(150deg, #f9d98f 0%, #ca9242 68%);
+      color: #4c2d09;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 700;
+      transform-style: preserve-3d;
+    }
+
+    .coin.tossing {
+      animation: tossCoin 0.85s cubic-bezier(0.18, 0.72, 0.33, 1.02);
+    }
+
+    @keyframes tossCoin {
+      0% { transform: translateY(0) rotateX(0) rotateZ(0); }
+      40% { transform: translateY(-32px) rotateX(420deg) rotateZ(90deg); }
+      100% { transform: translateY(0) rotateX(720deg) rotateZ(180deg); }
+    }
+
+    .yao-board {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .yao-line {
+      border: 1px solid rgba(202, 171, 116, 0.32);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: rgba(40, 30, 19, 0.56);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .yao-glyph {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      min-width: 72px;
+    }
+
+    .seg {
+      height: 4px;
+      width: 24px;
+      border-radius: 999px;
+      background: #f4cf86;
+      box-shadow: 0 0 8px rgba(244, 207, 134, 0.35);
+    }
+
+    .seg.break {
+      width: 10px;
+    }
+
+    .ritual-tag {
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(198, 171, 125, 0.42);
+      background: rgba(68, 48, 26, 0.6);
+      color: #f5deb1;
+      font-size: 12px;
+    }
+
+    .iching-stage .scanline {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(243, 196, 109, 0.92), transparent);
+      box-shadow: 0 0 14px rgba(243, 196, 109, 0.58);
+      animation: ichingScan 2.6s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes ichingScan {
+      0% { top: 8%; opacity: 0.26; }
+      50% { top: 92%; opacity: 0.96; }
+      100% { top: 8%; opacity: 0.26; }
+    }
+
+    .tip-list {
+      margin: 0;
+      padding-left: 18px;
+      color: #e8d7b4;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .profile-card {
+      max-height: none;
+      overflow: visible;
+      transition: none;
+    }
+
+    .profile-head {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+
+    .scene-stage {
+      opacity: 0;
+      transform: translateY(12px);
+      max-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transition: opacity 0.36s ease, transform 0.36s ease, max-height 0.36s ease;
+    }
+
+    .scene-stage.active {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: 2600px;
+      overflow: visible;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body class="ancient-page">
+  <header class="topbar">
+    <div>
+      <h1 class="title">赛博易经</h1>
+      <p class="subtitle">六次逐爻仪式：每爻需一次聚气与抛币，满六爻后方可断卦。</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card scene-stage active" data-step="2">
+      <h2>交互流程</h2>
+      <div class="ritual-steps">
+        <div class="ritual-step active">1. 握拳聚气</div>
+        <div class="ritual-step">2. 张手抛币</div>
+        <div class="ritual-step">3. 重复 6 次</div>
+        <div class="ritual-step">4. 六爻满后张手 1.8 秒确认</div>
+        <div class="ritual-step">5. 生成断卦</div>
+      </div>
+      <div class="sensor-panel" style="margin-top: 10px;">
+        <div class="sensor-stage iching-stage">
+          <video id="cam" class="sensor-video" playsinline muted></video>
+          <canvas id="overlay" class="sensor-overlay"></canvas>
+          <div class="scanline"></div>
+        </div>
+        <div>
+          <div class="sensor-hint" id="gesture-hint">请先握拳保持约 1.6 秒，提示“能量已满”后再张开手掌。</div>
+          <div class="progress-wrap" style="margin:10px 0 12px;">
+            <div class="progress-bar" id="gesture-progress"></div>
+          </div>
+          <div class="controls">
+          </div>
+          <div class="status" id="cam-status"></div>
+          <ul class="tip-list">
+            <li>首次启动视觉引擎会稍慢，属于正常预热。</li>
+            <li>建议手掌与镜头距离 25~40 厘米，避免过远丢点。</li>
+            <li>抛币动作不需要快，先握拳聚气再平稳张手即可。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card profile-card scene-stage active" id="profile-panel" data-step="1">
+      <div class="profile-head">
+        <h2 style="margin:0;">信息输入</h2>
+      </div>
+      <div class="grid cols-3">
+        <div>
+          <label for="user-name">称呼</label>
+          <input id="user-name" placeholder="例如：青玄" />
+        </div>
+        <div>
+          <label for="user-gender">性别</label>
+          <select id="user-gender">
+            <option value="">保密</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
+        </div>
+        <div>
+          <label for="user-location">出生地/常驻地</label>
+          <input id="user-location" placeholder="例如：杭州" />
+        </div>
+        <div>
+          <label for="year">出生年</label>
+          <input id="year" type="number" value="1995" />
+        </div>
+        <div>
+          <label for="month">出生月</label>
+          <input id="month" type="number" min="1" max="12" value="8" />
+        </div>
+        <div>
+          <label for="day">出生日</label>
+          <input id="day" type="number" min="1" max="31" value="15" />
+        </div>
+        <div>
+          <label for="hour">出生时（0~23）</label>
+          <input id="hour" type="number" min="0" max="23" value="14" />
+        </div>
+        <div>
+          <label for="gender">命盘性别</label>
+          <select id="gender">
+            <option value="male">男</option>
+            <option value="female">女</option>
+          </select>
+        </div>
+        <div>
+          <label for="question">来意补述（可选）</label>
+          <input id="question" placeholder="例如：最近犹豫是否换赛道，想先看势再动。" />
+        </div>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="card scene-stage active" data-step="2">
+      <h2>六爻仪式区</h2>
+      <div class="coin-stage">
+        <div class="controls" style="margin-top:0; justify-content:space-between;">
+          <div class="ritual-tag" id="line-tag">当前爻：第 1 爻（自下而上）</div>
+          <div class="ritual-tag" id="line-count">已完成：0 / 6</div>
+        </div>
+        <div class="coin-wrap" id="coin-wrap">
+          <div class="coin" id="coin-1">铜</div>
+          <div class="coin" id="coin-2">钱</div>
+          <div class="coin" id="coin-3">卦</div>
+        </div>
+        <div class="controls" style="justify-content:center;"></div>
+      </div>
+      <div class="yao-board" id="yao-board"></div>
+      <div class="kv" id="hex-preview" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="card scene-stage" data-step="3">
+      <h2>系统提示词（可改）</h2>
+      <textarea id="systemPrompt"></textarea>
+      <div class="controls">
+        <button class="btn primary" id="run" disabled>开始分析</button>
+      </div>
+      <div class="analysis-progress-wrap">
+        <div class="analysis-progress-bar" id="analysis-progress"></div>
+      </div>
+    </section>
+
+    <section class="card scene-stage" data-step="4">
+      <h2>解读结果</h2>
+      <div id="result" class="result"></div>
+      <div class="result-actions">
+        <button class="btn" id="again">再来一次</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const TYPE = "iching";
+    const CHARGE_TARGET_MS = 1600;
+    const RELEASE_TARGET_MS = 650;
+
+    const statusEl = MM.$("status");
+    const systemEl = MM.$("systemPrompt");
+    const resultEl = MM.$("result");
+    const analysisProgressEl = MM.$("analysis-progress");
+
+    const camEl = MM.$("cam");
+    const overlayEl = MM.$("overlay");
+    const hintEl = MM.$("gesture-hint");
+    const progressEl = MM.$("gesture-progress");
+    const camStatusEl = MM.$("cam-status");
+
+    const yaoBoardEl = MM.$("yao-board");
+    const previewEl = MM.$("hex-preview");
+    const lineTagEl = MM.$("line-tag");
+    const lineCountEl = MM.$("line-count");
+    const runBtn = MM.$("run");
+
+    const coinEls = [MM.$("coin-1"), MM.$("coin-2"), MM.$("coin-3")];
+
+    let lineResults = [];
+    let hexagramData = null;
+    let isRunning = false;
+    let requestInFlight = false;
+    let isCasting = false;
+    let analysisLocked = false;
+    let progressTimer = null;
+
+    let handCamera = null;
+    let handDetector = null;
+    let chargeMs = 0;
+    let releaseMs = 0;
+    let lastFrameTs = 0;
+    let energyReady = false;
+    let finalConfirmMs = 0;
+    let gestureCooldownUntil = 0;
+    let storyStep = 2;
+
+    const startupTips = [
+      "视觉引擎加载中，首次启动会稍慢。",
+      "请让整只手掌完整入框，避免半只手出镜。",
+      "聚气阶段手要稳，抛币阶段动作不用快。"
+    ];
+    let tipTimer = null;
+
+    const trigramMap = {
+      "111": "乾", "000": "坤", "010": "坎", "101": "离",
+      "001": "艮", "100": "震", "011": "巽", "110": "兑"
+    };
+
+    function setTipRotation(active) {
+      if (tipTimer) {
+        clearInterval(tipTimer);
+        tipTimer = null;
+      }
+      if (!active) return;
+      let idx = 0;
+      camStatusEl.textContent = startupTips[idx];
+      tipTimer = setInterval(() => {
+        idx = (idx + 1) % startupTips.length;
+        camStatusEl.textContent = startupTips[idx];
+      }, 1500);
+    }
+
+    function setStoryStep(step) {
+      storyStep = step;
+      document.querySelectorAll(".scene-stage").forEach((el) => {
+        const need = Number(el.dataset.step || "1");
+        el.classList.toggle("active", need <= step);
+      });
+    }
+
+    function lineInfo(value) {
+      if (value === 6) return { yinYang: 0, moving: true, label: "老阴(6)" };
+      if (value === 7) return { yinYang: 1, moving: false, label: "少阳(7)" };
+      if (value === 8) return { yinYang: 0, moving: false, label: "少阴(8)" };
+      return { yinYang: 1, moving: true, label: "老阳(9)" };
+    }
+
+    function makeGuaName(lines01) {
+      const lower = lines01.slice(0, 3).join("");
+      const upper = lines01.slice(3, 6).join("");
+      return `${trigramMap[upper] || "未知"}上${trigramMap[lower] || "未知"}下`;
+    }
+
+    function coinsToLine(coins) {
+      const sum = coins.reduce((a, b) => a + b, 0);
+      return { sum, coins, info: lineInfo(sum) };
+    }
+
+    function makeRandomCoins() {
+      return [0, 0, 0].map(() => (Math.random() < 0.5 ? 2 : 3));
+    }
+
+    function renderLineBoard() {
+      yaoBoardEl.innerHTML = "";
+      for (let i = 5; i >= 0; i -= 1) {
+        const row = document.createElement("div");
+        row.className = "yao-line";
+
+        if (lineResults[i]) {
+          const item = lineResults[i];
+          const glyph = item.info.yinYang
+            ? `<span class="seg"></span><span class="seg"></span>`
+            : `<span class="seg break"></span><span class="seg break"></span>`;
+          row.innerHTML = `
+            <div>第 ${i + 1} 爻</div>
+            <div class="yao-glyph">${glyph}</div>
+            <div>${item.info.label}${item.info.moving ? " · 动爻" : ""}</div>
+          `;
+        } else {
+          row.innerHTML = `<div>第 ${i + 1} 爻</div><div class="yao-glyph"><span class="seg break"></span><span class="seg break"></span></div><div>待起</div>`;
+          row.style.opacity = "0.55";
+        }
+
+        yaoBoardEl.appendChild(row);
+      }
+
+      lineTagEl.textContent = lineResults.length < 6
+        ? `当前爻：第 ${lineResults.length + 1} 爻（自下而上）`
+        : "六爻已满，可开始解读";
+      lineCountEl.textContent = `已完成：${lineResults.length} / 6`;
+      runBtn.disabled = lineResults.length < 6 || isRunning || requestInFlight || analysisLocked;
+      if (lineResults.length >= 6 && !analysisLocked) setStoryStep(3);
+    }
+
+    function buildHexagram() {
+      if (lineResults.length !== 6) return null;
+
+      const base = [];
+      const changed = [];
+      const changingLines = [];
+      const coinRecords = [];
+
+      lineResults.forEach((line, i) => {
+        const info = line.info;
+        base.push(info.yinYang);
+        changed.push(info.moving ? (info.yinYang ? 0 : 1) : info.yinYang);
+        if (info.moving) changingLines.push(i + 1);
+        coinRecords.push(`第${i + 1}爻: ${line.coins.join("+")}=${line.sum} (${info.label})`);
+      });
+
+      return {
+        benGua: { name: makeGuaName(base) },
+        bianGua: { name: makeGuaName(changed) },
+        changingLines,
+        coinRecords,
+        rawLines: lineResults.map((x) => x.sum)
+      };
+    }
+
+    function renderPreview() {
+      previewEl.innerHTML = "";
+      hexagramData = buildHexagram();
+      if (!hexagramData) {
+        const row = document.createElement("div");
+        row.className = "kv-item";
+        row.textContent = "六爻未完成，请继续起卦。";
+        previewEl.appendChild(row);
+        return;
+      }
+
+      const lines = [
+        `本卦：${hexagramData.benGua.name}`,
+        `变卦：${hexagramData.bianGua.name}`,
+        `动爻：${hexagramData.changingLines.length ? hexagramData.changingLines.join("、") : "无"}`,
+        ...hexagramData.coinRecords
+      ];
+
+      lines.forEach((line) => {
+        const row = document.createElement("div");
+        row.className = "kv-item";
+        row.textContent = line;
+        previewEl.appendChild(row);
+      });
+    }
+
+    async function animateAndCastLine(triggerSource) {
+      if (isCasting || lineResults.length >= 6) return;
+      isCasting = true;
+      const coins = makeRandomCoins();
+
+      coinEls.forEach((el, idx) => {
+        el.classList.remove("tossing");
+        void el.offsetWidth;
+        el.classList.add("tossing");
+        el.textContent = "?";
+        setTimeout(() => {
+          el.textContent = coins[idx] === 3 ? "字" : "背";
+        }, 580 + idx * 60);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 920));
+
+      lineResults.push(coinsToLine(coins));
+      renderLineBoard();
+      renderPreview();
+      MM.status(statusEl, `${triggerSource}完成第 ${lineResults.length} 爻`, "ok");
+      isCasting = false;
+    }
+
+    function resetLines() {
+      lineResults = [];
+      hexagramData = null;
+      analysisLocked = false;
+      finalConfirmMs = 0;
+      coinEls[0].textContent = "铜";
+      coinEls[1].textContent = "钱";
+      coinEls[2].textContent = "卦";
+      progressEl.style.width = "0%";
+      hintEl.textContent = "请先握拳聚气";
+      renderLineBoard();
+      renderPreview();
+      setStoryStep(2);
+      MM.status(statusEl, "已重置六爻", "ok");
+    }
+
+    function isFist(landmarks) {
+      const fingerPairs = [[8, 6], [12, 10], [16, 14], [20, 18]];
+      const curlCount = fingerPairs.reduce((sum, [tip, pip]) => sum + (landmarks[tip].y > landmarks[pip].y ? 1 : 0), 0);
+      return curlCount >= 3;
+    }
+
+    function isOpenPalm(landmarks) {
+      const fingerPairs = [[8, 6], [12, 10], [16, 14], [20, 18]];
+      const openCount = fingerPairs.reduce((sum, [tip, pip]) => sum + (landmarks[tip].y < landmarks[pip].y ? 1 : 0), 0);
+      return openCount >= 3;
+    }
+
+    function getUserProfile() {
+      return {
+        name: MM.$("user-name").value.trim() || "未透露称呼",
+        gender: MM.$("user-gender").value || "保密",
+        location: MM.$("user-location").value.trim() || "未填写"
+      };
+    }
+
+    function buildProfileText() {
+      const p = getUserProfile();
+      return `来访者信息：称呼${p.name}，性别${p.gender}，地区${p.location}`;
+    }
+
+    function profilePromptBlock(question) {
+      const p = getUserProfile();
+      return [
+        "【用户填写信息】",
+        `- 称呼：${p.name}`,
+        `- 性别：${p.gender}`,
+        `- 地区：${p.location}`,
+        `- 来意补述：${question || "未填写"}`
+      ].join("\n");
+    }
+
+    function startAnalyzeProgress() {
+      stopAnalyzeProgress();
+      let pct = 0;
+      analysisProgressEl.style.width = "0%";
+      progressTimer = setInterval(() => {
+        pct = Math.min(92, pct + 2);
+        analysisProgressEl.style.width = `${pct}%`;
+      }, 130);
+    }
+
+    function stopAnalyzeProgress(done) {
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+      analysisProgressEl.style.width = done ? "100%" : "0%";
+      if (done) {
+        setTimeout(() => {
+          analysisProgressEl.style.width = "0%";
+        }, 600);
+      }
+    }
+
+    function again() {
+      resetLines();
+      resultEl.innerHTML = "";
+      MM.status(statusEl, "请重新起卦", "ok");
+    }
+
+    async function runAnalysis(triggerSource = "手动") {
+      if (isRunning || requestInFlight) return;
+      if (analysisLocked) {
+        MM.status(statusEl, "当前卦象已解读，请重置六爻后再起一卦", "error");
+        return;
+      }
+      if (lineResults.length < 6) {
+        MM.status(statusEl, "六爻未完成，无法解读", "error");
+        return;
+      }
+      isRunning = true;
+      requestInFlight = true;
+      renderLineBoard();
+      try {
+        if (window.MMImmersive) {
+          await window.MMImmersive.showRitual({
+            title: "卦象推演中",
+            subtitle: "六爻既成，正在推导天机",
+            duration: 760
+          });
+        }
+        startAnalyzeProgress();
+        MM.status(statusEl, `正在生成解读（${triggerSource}）...`);
+
+        const bazi = {
+          year: Number(MM.$("year").value),
+          month: Number(MM.$("month").value),
+          day: Number(MM.$("day").value),
+          hour: Number(MM.$("hour").value),
+          gender: MM.$("gender").value
+        };
+        const question = MM.$("question").value.trim();
+        const profileText = buildProfileText();
+        const mergedQuestion = [profileText, question].filter(Boolean).join("；");
+        const profileBlock = profilePromptBlock(question);
+
+        const content = await MM.chat({
+          system: systemEl.value.trim(),
+          user: `${profileBlock}\n\n${window.PROMPTS.generateUserPrompt(bazi, hexagramData, mergedQuestion, profileText, getUserProfile())}`
+        });
+
+        MM.renderMarkdown(resultEl, content);
+        setStoryStep(4);
+        MM.saveRecord({
+          type: TYPE,
+          summary: MM.summarize(`${hexagramData.benGua.name} -> ${hexagramData.bianGua.name}`, 90),
+          fullContent: content,
+          meta: { bazi, hexagramData, question, triggerSource }
+        });
+
+        analysisLocked = true;
+        renderLineBoard();
+        MM.status(statusEl, "完成并已保存到历史", "ok");
+        stopAnalyzeProgress(true);
+      } catch (err) {
+        stopAnalyzeProgress(false);
+        MM.status(statusEl, err.message || String(err), "error");
+      } finally {
+        isRunning = false;
+        requestInFlight = false;
+        renderLineBoard();
+      }
+    }
+
+    async function startCamera() {
+      if (handCamera) return;
+      if (window.MMImmersive) {
+        try {
+          await window.MMImmersive.showRitual({
+            title: "卦镜开启",
+            subtitle: "正在连接六爻手势阵列",
+            duration: 560
+          });
+        } catch {}
+      }
+      setTipRotation(true);
+
+      handDetector = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      handDetector.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.55, minTrackingConfidence: 0.55 });
+
+      const ctx = overlayEl.getContext("2d");
+      handDetector.onResults((results) => {
+        const w = camEl.videoWidth || 640;
+        const h = camEl.videoHeight || 480;
+        overlayEl.width = w;
+        overlayEl.height = h;
+
+        ctx.save();
+        ctx.clearRect(0, 0, w, h);
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length) {
+          const landmarks = results.multiHandLandmarks[0];
+          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: "#f3c46d", lineWidth: 2 });
+          drawLandmarks(ctx, landmarks, { color: "#ffe5b8", lineWidth: 1, radius: 2 });
+
+          const now = performance.now();
+          const delta = Math.min(100, now - (lastFrameTs || now));
+          lastFrameTs = now;
+
+          if (isRunning || requestInFlight || isCasting || now <= gestureCooldownUntil) {
+            chargeMs = 0;
+            releaseMs = 0;
+            finalConfirmMs = 0;
+            progressEl.style.width = "0%";
+            if (requestInFlight) hintEl.textContent = "已发送请求，等待结果返回";
+            else if (lineResults.length >= 6) hintEl.textContent = "六爻已满，可开始解读";
+            else if (isCasting) hintEl.textContent = "当前爻抛币中，请稍候";
+            else if (isRunning) hintEl.textContent = "解读进行中，请稍候";
+            else hintEl.textContent = "手势冷却中，请稍候";
+          } else if (lineResults.length >= 6) {
+            if (analysisLocked) {
+              finalConfirmMs = 0;
+              progressEl.style.width = "0%";
+              hintEl.textContent = "此卦已解读，可点击“重置六爻”重新起卦";
+              ctx.restore();
+              return;
+            }
+            if (isOpenPalm(landmarks)) {
+              finalConfirmMs += delta;
+              const ratio = Math.min(1, finalConfirmMs / 1800);
+              progressEl.style.width = `${ratio * 100}%`;
+              hintEl.textContent = ratio < 1
+                ? "六爻已满，请张开手掌保持 1.8 秒开始解读"
+                : "手势确认完成，正在生成解读";
+              if (ratio >= 1) {
+                finalConfirmMs = 0;
+                progressEl.style.width = "0%";
+                gestureCooldownUntil = now + 2800;
+                runAnalysis("手势确认");
+              }
+            } else {
+              finalConfirmMs = 0;
+              progressEl.style.width = "0%";
+              hintEl.textContent = "六爻已满，请张开手掌并保持 1.8 秒开始解读";
+            }
+          } else if (!energyReady) {
+            if (isFist(landmarks)) {
+              chargeMs += delta;
+              const ratio = Math.min(1, chargeMs / CHARGE_TARGET_MS);
+              progressEl.style.width = `${ratio * 100}%`;
+              hintEl.textContent = ratio < 1 ? "正在聚气，请保持握拳" : "能量已满，请张开手掌抛币";
+              if (ratio >= 1) {
+                energyReady = true;
+                chargeMs = 0;
+                progressEl.style.width = "100%";
+              }
+            } else {
+              chargeMs = 0;
+              progressEl.style.width = "0%";
+              hintEl.textContent = "请先握拳聚气";
+            }
+          } else {
+            if (isOpenPalm(landmarks)) {
+              releaseMs += delta;
+              const ratio = Math.min(1, releaseMs / RELEASE_TARGET_MS);
+              progressEl.style.width = `${(1 - ratio) * 100}%`;
+              hintEl.textContent = "检测到张手，正在抛币";
+              if (ratio >= 1) {
+                energyReady = false;
+                releaseMs = 0;
+                progressEl.style.width = "0%";
+                gestureCooldownUntil = now + 1600;
+                animateAndCastLine("手势");
+              }
+            } else {
+              releaseMs = 0;
+              hintEl.textContent = "能量已满，请张开手掌完成当前爻";
+            }
+          }
+        } else {
+          chargeMs = 0;
+          releaseMs = 0;
+          finalConfirmMs = 0;
+          energyReady = false;
+          progressEl.style.width = "0%";
+          hintEl.textContent = "未检测到手部，请把手移入画面";
+        }
+
+        ctx.restore();
+      });
+
+      handCamera = new Camera(camEl, {
+        onFrame: async () => { await handDetector.send({ image: camEl }); },
+        width: 960,
+        height: 720
+      });
+
+      await handCamera.start();
+      setTipRotation(false);
+      MM.status(camStatusEl, "摄像头已启动", "ok");
+    }
+
+    function stopCamera() {
+      if (handCamera) {
+        handCamera.stop();
+        handCamera = null;
+      }
+      const ctx = overlayEl.getContext("2d");
+      ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+      setTipRotation(false);
+      chargeMs = 0;
+      releaseMs = 0;
+      finalConfirmMs = 0;
+      energyReady = false;
+      progressEl.style.width = "0%";
+      hintEl.textContent = "摄像头已关闭，可重新启动";
+      MM.status(camStatusEl, "摄像头已关闭", "ok");
+    }
+
+    MM.$("run").addEventListener("click", () => runAnalysis("手动触发"));
+    MM.$("again").addEventListener("click", again);
+
+    async function initPage() {
+      await MM.ready;
+      systemEl.value = MM.getPromptOverride(TYPE) || window.PROMPTS.system;
+      renderLineBoard();
+      renderPreview();
+      setStoryStep(storyStep);
+      try {
+        await MM.ensureCameraPermission({ video: true, audio: false });
+        await startCamera();
+      } catch (err) {
+        MM.status(camStatusEl, `摄像头权限失败：${err.message || err}`, "error");
+      }
+    }
+
+    initPage();
+  </script>
+</body>
+</html>

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>星盘实验室</title>
+  <link rel="stylesheet" href="../common/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js" crossorigin="anonymous"></script>
+  <script src="../common/storage.js"></script>
+  <script src="../common/app.js"></script>
+  <script src="../common/immersive.js"></script>
+  <script src="./prompts.js"></script>
+  <style>
+    .profile-card {
+      max-height: none;
+      overflow: visible;
+      transition: none;
+    }
+
+    .profile-head {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+
+    .chart-wrap {
+      max-width: 460px;
+      min-height: 240px;
+      margin: 10px auto 0;
+    }
+
+    .scene-stage {
+      opacity: 0;
+      transform: translateY(12px);
+      max-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transition: opacity 0.36s ease, transform 0.36s ease, max-height 0.36s ease;
+    }
+
+    .scene-stage.active {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: 2400px;
+      overflow: visible;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1 class="title">星盘实验室</h1>
+      <p class="subtitle">稳定星轨轮盘（太阳至冥王）+ 本命盘 / 关系盘。</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card profile-card scene-stage active" id="profile-panel" data-step="1">
+      <div class="profile-head">
+        <h2 style="margin:0;">第一幕 · 立意</h2>
+      </div>
+      <div class="grid cols-3">
+        <div>
+          <label for="mode">分析模式</label>
+          <select id="mode">
+            <option value="natal">本命盘</option>
+            <option value="synastry">关系盘</option>
+          </select>
+        </div>
+        <div>
+          <label for="user-name">称呼</label>
+          <input id="user-name" placeholder="例如：青玄" />
+        </div>
+        <div>
+          <label for="user-gender">性别</label>
+          <select id="user-gender">
+            <option value="">保密</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
+        </div>
+        <div>
+          <label for="user-birth">出生日期（可选）</label>
+          <input id="user-birth" type="date" />
+        </div>
+        <div>
+          <label for="user-location">出生地/常驻地</label>
+          <input id="user-location" placeholder="例如：广州" />
+        </div>
+        <div>
+          <label for="extra">来意补述（可选）</label>
+          <input id="extra" placeholder="例如：想重点看今年事业与关系的取舍方向。" />
+        </div>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="card profile-card scene-stage active" id="natal-box" data-step="1">
+      <div class="profile-head">
+        <h2 style="margin:0;">本命盘参数</h2>
+      </div>
+      <div class="grid cols-3">
+        <div>
+          <label for="n-date">出生日期</label>
+          <input id="n-date" type="date" value="1995-08-15" />
+        </div>
+        <div>
+          <label for="n-time">出生时间</label>
+          <input id="n-time" type="time" value="14:00" />
+        </div>
+        <div>
+          <label for="n-location">出生地点（用于记录）</label>
+          <input id="n-location" value="北京" />
+        </div>
+      </div>
+    </section>
+
+    <section class="card hidden profile-card scene-stage active" id="syn-box" data-step="1">
+      <div class="profile-head">
+        <h2 style="margin:0;">关系盘参数</h2>
+      </div>
+      <div class="grid cols-3">
+        <div>
+          <label for="p1-date">甲方日期</label>
+          <input id="p1-date" type="date" value="1995-08-15" />
+        </div>
+        <div>
+          <label for="p1-time">甲方时间</label>
+          <input id="p1-time" type="time" value="14:00" />
+        </div>
+        <div>
+          <label for="p1-location">甲方地点（用于记录）</label>
+          <input id="p1-location" value="北京" />
+        </div>
+        <div>
+          <label for="p2-date">乙方日期</label>
+          <input id="p2-date" type="date" value="1998-01-06" />
+        </div>
+        <div>
+          <label for="p2-time">乙方时间</label>
+          <input id="p2-time" type="time" value="09:20" />
+        </div>
+        <div>
+          <label for="p2-location">乙方地点（用于记录）</label>
+          <input id="p2-location" value="上海" />
+        </div>
+      </div>
+    </section>
+
+    <section class="card scene-stage active" data-step="2">
+      <h2>第二幕 · 构建星盘</h2>
+      <div class="ritual-steps">
+        <div class="ritual-step active">1. 填写信息</div>
+        <div class="ritual-step">2. 生成星盘</div>
+        <div class="ritual-step">3. 点击开始分析</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="astro-chart" class="astro-canvas"></canvas>
+      </div>
+      <div class="controls">
+        <button class="btn primary" id="run" disabled>开始分析</button>
+      </div>
+      <div class="status" id="chart-status"></div>
+      <div class="analysis-progress-wrap">
+        <div class="analysis-progress-bar" id="analysis-progress"></div>
+      </div>
+    </section>
+
+    <section class="card scene-stage" data-step="3">
+      <h2>第三幕 · 术式咒文（可改）</h2>
+      <textarea id="systemPrompt"></textarea>
+    </section>
+
+    <section class="card scene-stage" data-step="4">
+      <h2>第四幕 · 神谕降临</h2>
+      <div id="result" class="result"></div>
+      <div class="result-actions">
+        <button class="btn" id="again">再来一次</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const TYPE = "astro";
+    const statusEl = MM.$("status");
+    const chartStatusEl = MM.$("chart-status");
+    const systemEl = MM.$("systemPrompt");
+    const resultEl = MM.$("result");
+    const runBtn = MM.$("run");
+    const analysisProgressEl = MM.$("analysis-progress");
+
+    const planetDefs = [
+      { body: "Sun", name: "日", color: "#f5cd75" },
+      { body: "Moon", name: "月", color: "#f3f1ff" },
+      { body: "Mercury", name: "水", color: "#98c8ff" },
+      { body: "Venus", name: "金", color: "#ffd6b4" },
+      { body: "Mars", name: "火", color: "#ff8a8a" },
+      { body: "Jupiter", name: "木", color: "#f6b86f" },
+      { body: "Saturn", name: "土", color: "#d6c290" },
+      { body: "Uranus", name: "天", color: "#7fd4e8" },
+      { body: "Neptune", name: "海", color: "#7e8dff" },
+      { body: "Pluto", name: "冥", color: "#c995ff" }
+    ];
+
+    const zodiacNames = ["白羊", "金牛", "双子", "巨蟹", "狮子", "处女", "天秤", "天蝎", "射手", "摩羯", "水瓶", "双鱼"];
+
+    const chartState = {
+      p1: [],
+      p2: [],
+      mode: "natal"
+    };
+    let chartEngine = "stable";
+
+    const fallbackOrbitDefs = {
+      Sun: { l0: 280.46646, n: 0.98564736 },
+      Moon: { l0: 218.316, n: 13.176396 },
+      Mercury: { l0: 252.251, n: 4.09233445 },
+      Venus: { l0: 181.979, n: 1.60213034 },
+      Mars: { l0: 355.433, n: 0.524039 },
+      Jupiter: { l0: 34.351, n: 0.0830867 },
+      Saturn: { l0: 50.077, n: 0.0334597 },
+      Uranus: { l0: 314.055, n: 0.01173129 },
+      Neptune: { l0: 304.348, n: 0.00598103 },
+      Pluto: { l0: 238.929, n: 0.003964 }
+    };
+
+    let chartGenerated = false;
+    let isRunning = false;
+    let progressTimer = null;
+    let storyStep = 2;
+    let chartAutoTimer = null;
+
+    function makeLocalDate(dateStr, timeStr) {
+      if (!dateStr) return new Date();
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const [hh, mm] = (timeStr || "00:00").split(":").map(Number);
+      return new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+    }
+
+    function normDeg(v) {
+      const n = v % 360;
+      return n < 0 ? n + 360 : n;
+    }
+
+    function daysSinceJ2000(dateObj) {
+      const j2000 = Date.UTC(2000, 0, 1, 12, 0, 0, 0);
+      return (dateObj.getTime() - j2000) / 86400000;
+    }
+
+    function calcLongitudes(dateObj) {
+      const d = daysSinceJ2000(dateObj);
+      return {
+        engine: "stable",
+        points: planetDefs.map((item) => {
+          const orbit = fallbackOrbitDefs[item.body];
+          return {
+            name: item.name,
+            lon: normDeg(orbit.l0 + orbit.n * d),
+            color: item.color
+          };
+        })
+      };
+    }
+
+    function setupChartRenderer() {
+      const canvas = MM.$("astro-chart");
+      const ctx = canvas.getContext("2d");
+      let w = 0;
+      let h = 0;
+      let cx = 0;
+      let cy = 0;
+      let radius = 0;
+
+      function resize() {
+        const box = canvas.parentElement.getBoundingClientRect();
+        w = canvas.width = Math.floor(box.width);
+        h = canvas.height = Math.max(240, Math.floor(box.height));
+        cx = w / 2;
+        cy = h / 2;
+        radius = Math.min(w, h) * 0.31;
+      }
+
+      function drawRing() {
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        ctx.fillStyle = "rgba(11, 20, 45, 0.62)";
+        ctx.beginPath();
+        ctx.arc(0, 0, radius + 40, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (let i = 0; i < 12; i += 1) {
+          const start = (-90 + i * 30) * Math.PI / 180;
+          const end = start + (30 * Math.PI / 180);
+          ctx.beginPath();
+          ctx.strokeStyle = i % 2 === 0 ? "rgba(245, 208, 136, 0.42)" : "rgba(135, 173, 250, 0.3)";
+          ctx.lineWidth = 1;
+          ctx.arc(0, 0, radius, start, end);
+          ctx.stroke();
+
+          const mid = start + (15 * Math.PI / 180);
+          const tx = Math.cos(mid) * (radius + 24);
+          const ty = Math.sin(mid) * (radius + 24);
+          ctx.fillStyle = "rgba(239, 227, 198, 0.9)";
+          ctx.font = "12px 'PingFang SC'";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(zodiacNames[i], tx, ty);
+
+          const dx = Math.cos(start) * (radius - 18);
+          const dy = Math.sin(start) * (radius - 18);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(dx, dy);
+          ctx.strokeStyle = "rgba(208, 181, 121, 0.3)";
+          ctx.stroke();
+        }
+
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(255, 224, 160, 0.75)";
+        ctx.lineWidth = 2;
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawPlanets(points, ringRadius, labelColor) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        points.forEach((p) => {
+          const angle = ((p.lon - 90) * Math.PI) / 180;
+          const x = Math.cos(angle) * ringRadius;
+          const y = Math.sin(angle) * ringRadius;
+
+          ctx.beginPath();
+          ctx.fillStyle = p.color;
+          ctx.shadowColor = p.color;
+          ctx.shadowBlur = 12;
+          ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = labelColor;
+          ctx.font = "12px 'PingFang SC'";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(p.name, x, y - 13);
+        });
+        ctx.restore();
+      }
+
+      function draw(now) {
+        ctx.clearRect(0, 0, w, h);
+
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.7);
+        grad.addColorStop(0, "rgba(18, 31, 67, 0.65)");
+        grad.addColorStop(1, "rgba(7, 14, 32, 0.92)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        drawRing();
+
+        const pulse = 1 + Math.sin(now * 0.0015) * 0.01;
+        if (chartState.p1.length) drawPlanets(chartState.p1, radius * pulse, "#f5e9d0");
+        if (chartState.mode === "synastry" && chartState.p2.length) {
+          const p2 = chartState.p2.map((it) => ({ ...it, color: "#73c7ff" }));
+          drawPlanets(p2, radius * 0.82 * pulse, "#bde7ff");
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener("resize", resize);
+      resize();
+      requestAnimationFrame(draw);
+    }
+
+    function toggleMode() {
+      const mode = MM.$("mode").value;
+      MM.$("natal-box").classList.toggle("hidden", mode !== "natal");
+      MM.$("syn-box").classList.toggle("hidden", mode !== "synastry");
+      chartState.mode = mode;
+      chartGenerated = false;
+      runBtn.disabled = true;
+      chartStatusEl.textContent = "信息变更后会自动重建星盘";
+      scheduleChartAutoBuild();
+    }
+
+    function setStoryStep(step) {
+      storyStep = step;
+      document.querySelectorAll(".scene-stage").forEach((el) => {
+        const need = Number(el.dataset.step || "1");
+        el.classList.toggle("active", need <= step);
+      });
+    }
+
+    function buildProfileText() {
+      const name = MM.$("user-name").value.trim() || "未透露称呼";
+      const gender = MM.$("user-gender").value || "保密";
+      const birth = MM.$("user-birth").value || "未填写";
+      const location = MM.$("user-location").value.trim() || "未填写";
+      return `来访者信息：称呼${name}，性别${gender}，出生日期${birth}，地区${location}`;
+    }
+
+    function buildUserInfoBlock() {
+      const name = MM.$("user-name").value.trim() || "未透露称呼";
+      const gender = MM.$("user-gender").value || "保密";
+      const birth = MM.$("user-birth").value || "未填写";
+      const location = MM.$("user-location").value.trim() || "未填写";
+      const mode = MM.$("mode").value === "natal" ? "本命盘" : "关系盘";
+      return [
+        "【用户填写信息】",
+        `- 分析模式：${mode}`,
+        `- 称呼：${name}`,
+        `- 性别：${gender}`,
+        `- 出生日期：${birth}`,
+        `- 地区：${location}`,
+        `- 来意补述：${MM.$("extra").value.trim() || "未填写"}`
+      ].join("\n");
+    }
+
+    function formatPlanetData(points, tag) {
+      if (!points || !points.length) return "";
+      const text = points
+        .map((p) => `${p.name}${Number(p.lon).toFixed(2)}°`)
+        .join("，");
+      return `${tag}${text}`;
+    }
+
+    function startAnalyzeProgress() {
+      stopAnalyzeProgress();
+      let pct = 0;
+      analysisProgressEl.style.width = "0%";
+      progressTimer = setInterval(() => {
+        pct = Math.min(92, pct + 2);
+        analysisProgressEl.style.width = `${pct}%`;
+      }, 130);
+    }
+
+    function stopAnalyzeProgress(done) {
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+      analysisProgressEl.style.width = done ? "100%" : "0%";
+      if (done) {
+        setTimeout(() => {
+          analysisProgressEl.style.width = "0%";
+        }, 600);
+      }
+    }
+
+    function generateRealChart() {
+      const mode = MM.$("mode").value;
+      chartState.mode = mode;
+      const d1 = makeLocalDate(MM.$("n-date").value, MM.$("n-time").value);
+      const p1Res = calcLongitudes(d1);
+      chartState.p1 = p1Res.points;
+      chartEngine = "stable";
+
+      if (mode === "synastry") {
+        const d2 = makeLocalDate(MM.$("p2-date").value, MM.$("p2-time").value);
+        const p2Res = calcLongitudes(d2);
+        chartState.p2 = p2Res.points;
+      } else {
+        chartState.p2 = [];
+      }
+
+      chartGenerated = chartState.p1.length > 0;
+      runBtn.disabled = !chartGenerated;
+
+      if (chartGenerated) {
+        chartStatusEl.textContent = mode === "natal"
+          ? "星盘已生成，可直接开始分析。"
+          : "合盘已生成：外圈甲方、内圈乙方。可直接开始分析。";
+        MM.status(statusEl, "星盘生成完成，请确认后开始分析", "ok");
+        setStoryStep(3);
+      } else {
+        chartStatusEl.textContent = "星盘生成失败，请检查输入后重试。";
+        MM.status(statusEl, "星盘生成失败", "error");
+      }
+    }
+
+    function scheduleChartAutoBuild() {
+      if (chartAutoTimer) clearTimeout(chartAutoTimer);
+      chartAutoTimer = setTimeout(() => {
+        generateRealChart();
+      }, 220);
+    }
+
+    function again() {
+      chartGenerated = false;
+      runBtn.disabled = true;
+      resultEl.innerHTML = "";
+      MM.status(statusEl, "已重置，请重新填写信息", "ok");
+      setStoryStep(2);
+      scheduleChartAutoBuild();
+    }
+
+    async function runAnalysis() {
+      if (!chartGenerated) {
+        MM.status(statusEl, "请先生成星盘", "error");
+        return;
+      }
+      if (isRunning) return;
+      isRunning = true;
+      runBtn.disabled = true;
+
+      try {
+        if (window.MMImmersive) {
+          await window.MMImmersive.showRitual({
+            title: "星轨推演中",
+            subtitle: "正在汇聚星体位置与提问意图",
+            duration: 760
+          });
+        }
+        startAnalyzeProgress();
+        MM.status(statusEl, "正在生成解读...");
+
+        const mode = MM.$("mode").value;
+        const extra = MM.$("extra").value.trim();
+        const profileText = buildProfileText();
+        let userPrompt = "";
+        const meta = { mode };
+
+        if (mode === "natal") {
+          const data = {
+            date: MM.$("n-date").value,
+            time: MM.$("n-time").value,
+            location: MM.$("n-location").value.trim()
+          };
+          userPrompt = window.PROMPTS.generateNatalPrompt(data);
+          meta.natal = data;
+          userPrompt += `\n\n【出生信息】\n- 出生日期：${data.date}\n- 出生时间：${data.time}\n- 出生地点：${data.location || "未填写"}`;
+        } else {
+          const p1 = {
+            date: MM.$("p1-date").value,
+            time: MM.$("p1-time").value,
+            location: MM.$("p1-location").value.trim()
+          };
+          const p2 = {
+            date: MM.$("p2-date").value,
+            time: MM.$("p2-time").value,
+            location: MM.$("p2-location").value.trim()
+          };
+          userPrompt = window.PROMPTS.generateSynastryPrompt(p1, p2);
+          meta.p1 = p1;
+          meta.p2 = p2;
+          userPrompt += `\n\n【甲方填写】\n- 日期：${p1.date}\n- 时间：${p1.time}\n- 地点：${p1.location || "未填写"}`;
+          userPrompt += `\n\n【乙方填写】\n- 日期：${p2.date}\n- 时间：${p2.time}\n- 地点：${p2.location || "未填写"}`;
+        }
+
+        userPrompt += `\n\n${buildUserInfoBlock()}`;
+        userPrompt += `\n\n${profileText}`;
+        userPrompt += `\n\n星盘引擎：稳定星轨引擎`;
+        userPrompt += `\n${formatPlanetData(chartState.p1, "甲盘黄经：")}`;
+        if (mode === "synastry") {
+          userPrompt += `\n${formatPlanetData(chartState.p2, "乙盘黄经：")}`;
+        }
+        if (extra) userPrompt += `\n\n来意补述：${extra}`;
+
+        const content = await MM.chat({
+          system: systemEl.value.trim(),
+          user: userPrompt
+        });
+
+        MM.renderMarkdown(resultEl, content);
+        setStoryStep(4);
+        MM.saveRecord({
+          type: TYPE,
+          summary: MM.summarize(mode === "natal" ? "本命盘解读" : "关系盘解读", 90),
+          fullContent: content,
+          meta: { ...meta, chartP1: chartState.p1, chartP2: chartState.p2, chartEngine }
+        });
+
+        MM.status(statusEl, "完成并已保存到历史", "ok");
+        stopAnalyzeProgress(true);
+      } catch (err) {
+        stopAnalyzeProgress(false);
+        MM.status(statusEl, err.message || String(err), "error");
+      } finally {
+        isRunning = false;
+        runBtn.disabled = !chartGenerated;
+      }
+    }
+
+    MM.$("mode").addEventListener("change", toggleMode);
+
+    MM.$("run").addEventListener("click", runAnalysis);
+    MM.$("again").addEventListener("click", again);
+
+    async function initPage() {
+      await MM.ready;
+      systemEl.value = MM.getPromptOverride(TYPE) || window.PROMPTS.system;
+      setupChartRenderer();
+      toggleMode();
+      setStoryStep(storyStep);
+      chartStatusEl.textContent = "信息变更后会自动重建星盘";
+      scheduleChartAutoBuild();
+      [
+        "user-name", "user-gender", "user-birth", "user-location", "extra",
+        "n-date", "n-time", "n-location",
+        "p1-date", "p1-time", "p1-location",
+        "p2-date", "p2-time", "p2-location"
+      ].forEach((id) => {
+        const el = MM.$(id);
+        if (el) el.addEventListener("input", scheduleChartAutoBuild);
+      });
+    }
+
+    initPage();
+  </script>
+</body>
+</html>
+
+
+

@@ -1,0 +1,224 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>命运回响</title>
+  <link rel="stylesheet" href="../common/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js" crossorigin="anonymous"></script>
+  <script src="../common/storage.js"></script>
+  <script src="../common/app.js"></script>
+  <script src="../common/immersive.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1 class="title">命运回响</h1>
+      <p class="subtitle">统一查看历史记录，进行跨模块命理聚合。</p>
+    </div>
+    <nav class="nav">
+      <a href="../index.html">主页</a>
+      <a href="../prompt_center/index.html">提示词中心</a>
+      <a href="../tarot/index.html">塔罗</a>
+      <a href="../iching/index.html">易经</a>
+      <a href="../palmistry/index.html">手相</a>
+      <a href="../face_reading/index.html">面相</a>
+      <a href="../astro/index.html">星盘</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>聚合流程</h2>
+      <div class="ritual-steps">
+        <div class="ritual-step active">1. 选择日期与类型</div>
+        <div class="ritual-step">2. 执行命运大聚合</div>
+        <div class="ritual-step">3. 生成可执行建议</div>
+      </div>
+    </section>
+
+    <section class="card grid cols-2">
+      <div>
+        <label for="filterType">类型筛选</label>
+        <select id="filterType">
+          <option value="">全部</option>
+          <option value="tarot">塔罗</option>
+          <option value="iching">易经</option>
+          <option value="palmistry">手相</option>
+          <option value="face">面相</option>
+          <option value="astro">星盘</option>
+          <option value="history">聚合报告</option>
+        </select>
+      </div>
+      <div>
+        <label for="filterDate">日期筛选</label>
+        <input id="filterDate" type="date" />
+      </div>
+      <div class="controls">
+        <button class="btn" id="refresh">刷新</button>
+        <button class="btn primary" id="aggregate">命运大聚合</button>
+        <button class="btn" id="export">导出 JSON</button>
+        <button class="btn danger" id="clear">清空全部记录</button>
+        <a class="btn" href="../index.html">前往主页配置接口</a>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>记录列表</h2>
+      <div id="list" class="list"></div>
+    </section>
+
+    <section class="card">
+      <h2>详情 / 聚合结果</h2>
+      <div id="detail" class="result"></div>
+    </section>
+  </main>
+
+  <script>
+    const statusEl = MM.$("status");
+    const listEl = MM.$("list");
+    const detailEl = MM.$("detail");
+
+    const HISTORY_SYSTEM_DEFAULT = [
+      "你是赛博玄学矩阵的总分析师，负责将同一天的多模块占卜结果融合成可执行的生活策略。",
+      "你必须先识别每条记录的核心信号（风险、机会、情绪、行动倾向），再跨模块交叉验证，找出一致结论与冲突结论。",
+      "输出结构必须包含：一、今日总运势判定；二、事业、财运、情感、健康四大板块；三、冲突信号解释；四、24小时行动清单；五、禁忌与止损建议。",
+      "每个板块都要给出明确优先级（高/中/低）与时间窗口（上午/下午/夜间），避免空泛描述。",
+      "如果样本存在互相矛盾的判断，你要显式标注矛盾来源并给出折中策略，而不是只取其一。",
+      "语言风格保持神秘学仪式感，但建议必须落地可执行，优先使用短句和清单。"
+    ].join("\n");
+
+    function readFilters() {
+      return {
+        type: MM.$("filterType").value,
+        date: MM.$("filterDate").value
+      };
+    }
+
+    function getFiltered() {
+      const { type, date } = readFilters();
+      let rows = MM.getAllRecords();
+      if (type) rows = rows.filter((r) => r.type === type);
+      if (date) rows = rows.filter((r) => String(r.timestamp || "").startsWith(date));
+      rows.sort((a, b) => String(b.timestamp || "").localeCompare(String(a.timestamp || "")));
+      return rows;
+    }
+
+    function renderList() {
+      const rows = getFiltered();
+      listEl.innerHTML = "";
+      if (!rows.length) {
+        listEl.innerHTML = '<div class="kv-item">暂无记录</div>';
+        return;
+      }
+
+      rows.forEach((row) => {
+        const item = document.createElement("div");
+        item.className = "record";
+
+        const title = document.createElement("h4");
+        title.textContent = `[${row.type}] ${row.summary || "无摘要"}`;
+
+        const meta = document.createElement("div");
+        meta.className = "record-meta";
+        meta.textContent = `${MM.formatTime(row.timestamp)} | ID: ${row.id}`;
+
+        const controls = document.createElement("div");
+        controls.className = "controls";
+
+        const viewBtn = document.createElement("button");
+        viewBtn.className = "btn";
+        viewBtn.textContent = "查看详情";
+        viewBtn.addEventListener("click", () => MM.renderMarkdown(detailEl, row.fullContent || ""));
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn danger";
+        delBtn.textContent = "删除";
+        delBtn.addEventListener("click", () => {
+          MM.deleteRecord(row.id);
+          renderList();
+          MM.status(statusEl, "记录已删除", "ok");
+        });
+
+        controls.appendChild(viewBtn);
+        controls.appendChild(delBtn);
+        item.appendChild(title);
+        item.appendChild(meta);
+        item.appendChild(controls);
+        listEl.appendChild(item);
+      });
+    }
+
+    MM.$("refresh").addEventListener("click", renderList);
+    MM.$("filterType").addEventListener("change", renderList);
+    MM.$("filterDate").addEventListener("change", renderList);
+
+    MM.$("clear").addEventListener("click", () => {
+      MM.clearRecords();
+      detailEl.innerHTML = "";
+      renderList();
+      MM.status(statusEl, "已清空全部记录", "ok");
+    });
+
+    MM.$("export").addEventListener("click", () => {
+      const rows = getFiltered();
+      const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mystic_matrix_records_${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      MM.status(statusEl, `已导出 ${rows.length} 条记录`, "ok");
+    });
+
+    MM.$("aggregate").addEventListener("click", async () => {
+      try {
+        const date = MM.$("filterDate").value || new Date().toISOString().slice(0, 10);
+        const rows = MM.getAllRecords().filter((r) => String(r.timestamp || "").startsWith(date) && r.type !== "history");
+
+        if (!rows.length) {
+          MM.status(statusEl, `${date} 没有记录可聚合`, "error");
+          return;
+        }
+
+        MM.status(statusEl, `正在聚合 ${rows.length} 条记录...`);
+
+        const contentLines = rows.map((r, idx) => (
+          `${idx + 1}. [${r.type}] ${r.summary}\n${(r.fullContent || "").slice(0, 900)}`
+        ));
+
+        const userPrompt = `请综合分析以下同一天的命理记录，输出“总运势+四板块+冲突处理+行动清单+禁忌”：\n\n日期：${date}\n\n${contentLines.join("\n\n")}`;
+
+        const text = await MM.chat({
+          system: MM.getPromptOverride("history") || HISTORY_SYSTEM_DEFAULT,
+          user: userPrompt
+        });
+
+        MM.renderMarkdown(detailEl, text);
+        MM.saveRecord({
+          type: "history",
+          summary: MM.summarize(`${date} 命运大聚合`, 90),
+          fullContent: text,
+          meta: { date, count: rows.length }
+        });
+
+        MM.status(statusEl, "聚合完成并已存档", "ok");
+        renderList();
+      } catch (err) {
+        MM.status(statusEl, err.message || String(err), "error");
+      }
+    });
+
+    async function initPage() {
+      await MM.ready;
+      renderList();
+    }
+
+    initPage();
+  </script>
+</body>
+</html>

@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智能面相</title>
+  <link rel="stylesheet" href="../common/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="../common/storage.js"></script>
+  <script src="../common/app.js"></script>
+  <script src="../common/immersive.js"></script>
+  <script src="./prompts.js"></script>
+  <style>
+    .face-stage .scanline {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(232, 102, 102, 0.9), transparent);
+      box-shadow: 0 0 14px rgba(232, 102, 102, 0.55);
+      animation: faceScan 2.4s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes faceScan {
+      0% { top: 8%; opacity: 0.25; }
+      50% { top: 90%; opacity: 0.9; }
+      100% { top: 8%; opacity: 0.25; }
+    }
+
+    .tip-list {
+      margin: 0;
+      padding-left: 18px;
+      color: #e8d7b4;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .profile-card {
+      max-height: none;
+      overflow: visible;
+      transition: none;
+    }
+
+    .profile-head {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+
+    .scene-stage {
+      opacity: 0;
+      transform: translateY(12px);
+      max-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transition: opacity 0.36s ease, transform 0.36s ease, max-height 0.36s ease;
+    }
+
+    .scene-stage.active {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: 2400px;
+      overflow: visible;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body class="ancient-page">
+  <header class="topbar">
+    <div>
+      <h1 class="title">智能面相</h1>
+      <p class="subtitle">沉浸流程：填写来意补述 -> 正脸稳定采样 5 秒 -> 参数锁定确认 -> 开始神谕解读。</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card profile-card scene-stage active" id="profile-panel" data-step="1">
+      <div class="profile-head">
+        <h2 style="margin:0;">第一幕 · 立意</h2>
+      </div>
+      <div class="grid cols-3">
+        <div>
+          <label for="user-name">称呼</label>
+          <input id="user-name" placeholder="例如：青玄" />
+        </div>
+        <div>
+          <label for="user-gender">性别</label>
+          <select id="user-gender">
+            <option value="">保密</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
+        </div>
+        <div>
+          <label for="user-birth">出生日期</label>
+          <input id="user-birth" type="date" />
+        </div>
+        <div>
+          <label for="user-location">出生地/常驻地</label>
+          <input id="user-location" placeholder="例如：上海" />
+        </div>
+      </div>
+      <div class="grid" style="margin-top: 10px;">
+        <div>
+          <label for="question">来意补述（可选）</label>
+          <input id="question" placeholder="例如：我最近状态起伏大，想知道该先稳住哪一块。" />
+        </div>
+      </div>
+    </section>
+
+    <section class="card scene-stage active" data-step="2">
+      <h2>第二幕 · 正脸采样</h2>
+      <div class="ritual-steps">
+        <div class="ritual-step active">1. 正脸稳定 5 秒采样</div>
+        <div class="ritual-step">2. 多帧均值锁定参数</div>
+        <div class="ritual-step">3. 手动点击开始分析</div>
+      </div>
+      <div class="sensor-panel" style="margin-top: 10px;">
+        <div class="sensor-stage face-stage">
+          <video id="cam" class="sensor-video" playsinline muted></video>
+          <canvas id="overlay" class="sensor-overlay"></canvas>
+          <div class="scanline"></div>
+        </div>
+        <div>
+          <div class="sensor-hint" id="face-hint">启动摄像头后，正脸居中，保持自然睁眼并稳定 5 秒。</div>
+          <div class="progress-wrap" style="margin: 10px 0 12px;">
+            <div class="progress-bar" id="face-progress"></div>
+          </div>
+          <div class="controls">
+            <button class="btn primary" id="run" disabled>开始分析</button>
+          </div>
+          <div class="status" id="cam-status"></div>
+          <ul class="tip-list">
+            <li>镜头与脸部距离建议 35~60 厘米；下巴到额头需完整入镜。</li>
+            <li>建议摘掉反光严重的眼镜；若佩戴眼镜，请避免强反光。</li>
+            <li>保持自然睁眼、嘴部放松，头部尽量不左右晃动，采样更准。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card scene-stage" data-step="3">
+      <h2>第三幕 · 参数校核</h2>
+      <div class="grid cols-3">
+        <div>
+          <label for="upper">上庭比例</label>
+          <input id="upper" type="number" step="0.01" min="0.7" max="1.3" value="1.00" />
+        </div>
+        <div>
+          <label for="middle">中庭比例</label>
+          <input id="middle" type="number" step="0.01" min="0.7" max="1.3" value="1.00" />
+        </div>
+        <div>
+          <label for="lower">下庭比例</label>
+          <input id="lower" type="number" step="0.01" min="0.7" max="1.3" value="1.00" />
+        </div>
+        <div>
+          <label for="fiveEyes">五眼眼距比例</label>
+          <input id="fiveEyes" type="number" step="0.01" min="0.7" max="1.3" value="1.00" />
+        </div>
+        <div>
+          <label for="noseWidth">鼻宽指标</label>
+          <input id="noseWidth" type="number" step="0.01" min="0.2" max="0.5" value="0.32" />
+        </div>
+        <div>
+          <label for="lipThickness">唇厚指标</label>
+          <input id="lipThickness" type="number" step="0.01" min="0.08" max="0.25" value="0.15" />
+        </div>
+      </div>
+      <div id="status" class="status"></div>
+      <div class="analysis-progress-wrap">
+        <div class="analysis-progress-bar" id="analysis-progress"></div>
+      </div>
+    </section>
+
+    <section class="card scene-stage" data-step="3">
+      <h2>术式咒文（可改）</h2>
+      <textarea id="systemPrompt"></textarea>
+    </section>
+
+    <section class="card scene-stage" data-step="4">
+      <h2>第四幕 · 神谕降临</h2>
+      <div id="result" class="result"></div>
+      <div class="result-actions">
+        <button class="btn" id="again">再来一次</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const TYPE = "face";
+    const COLLECT_MS = 5000;
+    const STABLE_MOVE_THRESHOLD = 0.0023;
+
+    const statusEl = MM.$("status");
+    const systemEl = MM.$("systemPrompt");
+    const resultEl = MM.$("result");
+    const camStatusEl = MM.$("cam-status");
+    const hintEl = MM.$("face-hint");
+    const progressEl = MM.$("face-progress");
+    const analysisProgressEl = MM.$("analysis-progress");
+    const camEl = MM.$("cam");
+    const overlayEl = MM.$("overlay");
+    const runBtn = MM.$("run");
+
+    let faceCamera = null;
+    let faceDetector = null;
+    let isRunning = false;
+    let requestInFlight = false;
+    let collectMs = 0;
+    let lastFrameTs = 0;
+    let autoCooldownUntil = 0;
+    let lastNose = null;
+    let metricsCollected = false;
+    let progressTimer = null;
+    let sampleFrames = [];
+    let storyStep = 2;
+
+    const startupTips = [
+      "视觉引擎加载中，首次启动会稍慢。",
+      "保持正脸入镜，头肩放松，尽量避免转头。",
+      "建议稳定 5 秒，系统会取多帧均值锁定参数。"
+    ];
+    let tipTimer = null;
+
+    function setTipRotation(active) {
+      if (tipTimer) {
+        clearInterval(tipTimer);
+        tipTimer = null;
+      }
+      if (!active) return;
+      let idx = 0;
+      camStatusEl.textContent = startupTips[idx];
+      tipTimer = setInterval(() => {
+        idx = (idx + 1) % startupTips.length;
+        camStatusEl.textContent = startupTips[idx];
+      }, 1500);
+    }
+
+    function setStoryStep(step) {
+      storyStep = step;
+      document.querySelectorAll(".scene-stage").forEach((el) => {
+        const need = Number(el.dataset.step || "1");
+        el.classList.toggle("active", need <= step);
+      });
+    }
+
+    function dist(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function safeRatio(num, den) {
+      return num / Math.max(1e-6, den);
+    }
+
+    function extractFaceMetrics(landmarks) {
+      const forehead = landmarks[10];
+      const brow = landmarks[168];
+      const nose = landmarks[1];
+      const chin = landmarks[152];
+
+      const upperLen = dist(forehead, brow);
+      const middleLen = dist(brow, nose);
+      const lowerLen = dist(nose, chin);
+      const avg = (upperLen + middleLen + lowerLen) / 3;
+
+      const leftOuter = landmarks[33];
+      const leftInner = landmarks[133];
+      const rightInner = landmarks[362];
+      const rightOuter = landmarks[263];
+
+      const eyeDistance = dist(leftInner, rightInner);
+      const eyeWidthAvg = (dist(leftOuter, leftInner) + dist(rightOuter, rightInner)) / 2;
+      const faceWidth = dist(landmarks[234], landmarks[454]);
+      const faceHeight = dist(forehead, chin);
+      const noseWidth = safeRatio(dist(landmarks[97], landmarks[326]), faceWidth);
+      const lipThickness = safeRatio(dist(landmarks[13], landmarks[14]), faceHeight);
+
+      return {
+        threeCourts: {
+          upper: Number(safeRatio(upperLen, avg).toFixed(2)),
+          middle: Number(safeRatio(middleLen, avg).toFixed(2)),
+          lower: Number(safeRatio(lowerLen, avg).toFixed(2))
+        },
+        fiveEyes: {
+          ratio: Number(safeRatio(eyeDistance, eyeWidthAvg * 2).toFixed(2))
+        },
+        features: {
+          noseWidth: Number(noseWidth.toFixed(2)),
+          lipThickness: Number(lipThickness.toFixed(2))
+        },
+        nose
+      };
+    }
+
+    function applyFaceMetrics(faceData) {
+      MM.$("upper").value = faceData.threeCourts.upper;
+      MM.$("middle").value = faceData.threeCourts.middle;
+      MM.$("lower").value = faceData.threeCourts.lower;
+      MM.$("fiveEyes").value = faceData.fiveEyes.ratio;
+      MM.$("noseWidth").value = faceData.features.noseWidth;
+      MM.$("lipThickness").value = faceData.features.lipThickness;
+    }
+
+    function avg(values) {
+      if (!values.length) return 0;
+      return values.reduce((s, n) => s + n, 0) / values.length;
+    }
+
+    function averageFaceMetrics(samples) {
+      return {
+        threeCourts: {
+          upper: Number(avg(samples.map((x) => x.threeCourts.upper)).toFixed(2)),
+          middle: Number(avg(samples.map((x) => x.threeCourts.middle)).toFixed(2)),
+          lower: Number(avg(samples.map((x) => x.threeCourts.lower)).toFixed(2))
+        },
+        fiveEyes: {
+          ratio: Number(avg(samples.map((x) => x.fiveEyes.ratio)).toFixed(2))
+        },
+        features: {
+          noseWidth: Number(avg(samples.map((x) => x.features.noseWidth)).toFixed(2)),
+          lipThickness: Number(avg(samples.map((x) => x.features.lipThickness)).toFixed(2))
+        }
+      };
+    }
+
+    function getUserProfile() {
+      return {
+        name: MM.$("user-name").value.trim() || "未署名",
+        gender: MM.$("user-gender").value || "未说明",
+        birth: MM.$("user-birth").value || "未填写",
+        location: MM.$("user-location").value.trim() || "未填写"
+      };
+    }
+
+    function profileText() {
+      const p = getUserProfile();
+      return `来访者信息：称呼${p.name}，性别${p.gender}，出生日期${p.birth}，地区${p.location}。`;
+    }
+
+    function profilePromptBlock(question) {
+      const p = getUserProfile();
+      return [
+        "【用户填写信息】",
+        `- 称呼：${p.name}`,
+        `- 性别：${p.gender}`,
+        `- 出生日期：${p.birth}`,
+        `- 地区：${p.location}`,
+        `- 来意补述：${question || "未填写"}`
+      ].join("\n");
+    }
+
+    function startAnalyzeProgress() {
+      stopAnalyzeProgress();
+      let pct = 0;
+      analysisProgressEl.style.width = "0%";
+      progressTimer = setInterval(() => {
+        pct = Math.min(92, pct + 2);
+        analysisProgressEl.style.width = `${pct}%`;
+      }, 130);
+    }
+
+    function stopAnalyzeProgress(done) {
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+      analysisProgressEl.style.width = done ? "100%" : "0%";
+      if (done) {
+        setTimeout(() => {
+          analysisProgressEl.style.width = "0%";
+        }, 600);
+      }
+    }
+
+    function resetForAnother() {
+      metricsCollected = false;
+      collectMs = 0;
+      runBtn.disabled = true;
+      progressEl.style.width = "0%";
+      resultEl.innerHTML = "";
+      sampleFrames = [];
+      lastNose = null;
+      hintEl.textContent = "请正脸直视镜头并保持稳定约 5 秒进行采样";
+      setStoryStep(2);
+      MM.status(statusEl, "已重置，请重新采样", "ok");
+    }
+
+    async function runAnalysis(triggerSource = "手动") {
+      if (!metricsCollected) {
+        MM.status(statusEl, "请先完成面部采样", "error");
+        return;
+      }
+      if (isRunning || requestInFlight) return;
+      requestInFlight = true;
+      isRunning = true;
+      runBtn.disabled = true;
+
+      try {
+        if (window.MMImmersive) {
+          await window.MMImmersive.showRitual({
+            title: "面相推演中",
+            subtitle: "正在校准骨相与气场数据",
+            duration: 760
+          });
+        }
+        startAnalyzeProgress();
+        MM.status(statusEl, `正在生成解读（${triggerSource}）...`);
+
+        const faceData = {
+          threeCourts: {
+            upper: Number(MM.$("upper").value),
+            middle: Number(MM.$("middle").value),
+            lower: Number(MM.$("lower").value)
+          },
+          fiveEyes: {
+            ratio: Number(MM.$("fiveEyes").value)
+          },
+          features: {
+            noseWidth: Number(MM.$("noseWidth").value),
+            lipThickness: Number(MM.$("lipThickness").value)
+          }
+        };
+        const question = MM.$("question").value.trim();
+
+        const userPrompt = `${profilePromptBlock(question)}\n\n${window.PROMPTS.generateUserPrompt(faceData, question, getUserProfile())}`;
+        const content = await MM.chat({ system: systemEl.value.trim(), user: userPrompt });
+
+        MM.renderMarkdown(resultEl, content);
+        setStoryStep(4);
+        MM.saveRecord({
+          type: TYPE,
+          summary: MM.summarize(`三庭:${faceData.threeCourts.upper}/${faceData.threeCourts.middle}/${faceData.threeCourts.lower}`, 90),
+          fullContent: content,
+          meta: { faceData, question, triggerSource, profile: profileText() }
+        });
+
+        MM.status(statusEl, "完成并已保存到历史", "ok");
+        stopAnalyzeProgress(true);
+      } catch (err) {
+        stopAnalyzeProgress(false);
+        MM.status(statusEl, err.message || String(err), "error");
+      } finally {
+        isRunning = false;
+        requestInFlight = false;
+        runBtn.disabled = false;
+        autoCooldownUntil = performance.now() + 1200;
+      }
+    }
+
+    async function startCamera() {
+      if (faceCamera) return;
+      setTipRotation(true);
+
+      faceDetector = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
+      faceDetector.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+
+      const ctx = overlayEl.getContext("2d");
+      faceDetector.onResults((results) => {
+        const w = camEl.videoWidth || 640;
+        const h = camEl.videoHeight || 480;
+        overlayEl.width = w;
+        overlayEl.height = h;
+
+        ctx.save();
+        ctx.clearRect(0, 0, w, h);
+
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length) {
+          const landmarks = results.multiFaceLandmarks[0];
+          drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, { color: "rgba(243, 196, 109, 0.45)", lineWidth: 1 });
+
+          const now = performance.now();
+          const delta = Math.min(100, now - (lastFrameTs || now));
+          lastFrameTs = now;
+
+          const sampled = extractFaceMetrics(landmarks);
+          const movement = lastNose ? dist(sampled.nose, lastNose) : 1;
+          lastNose = sampled.nose;
+          const stable = movement < STABLE_MOVE_THRESHOLD;
+
+          if (isRunning || requestInFlight || now <= autoCooldownUntil) {
+            collectMs = 0;
+            sampleFrames = [];
+            progressEl.style.width = "0%";
+            if (requestInFlight) hintEl.textContent = "已发送请求，等待结果返回";
+            else if (isRunning) hintEl.textContent = "分析中，请稍候";
+            else hintEl.textContent = "冷却中，请稍候";
+          } else if (!metricsCollected) {
+            if (stable) {
+              collectMs += delta;
+              sampleFrames.push(sampled);
+              const ratio = Math.min(1, collectMs / COLLECT_MS);
+              progressEl.style.width = `${ratio * 100}%`;
+              hintEl.textContent = ratio < 1
+                ? "采集中：请保持头部稳定"
+                : "采样完成，正在用多帧均值锁定参数";
+              if (ratio >= 1) {
+                applyFaceMetrics(averageFaceMetrics(sampleFrames));
+                metricsCollected = true;
+                sampleFrames = [];
+                collectMs = 0;
+                progressEl.style.width = "100%";
+                runBtn.disabled = false;
+                setStoryStep(3);
+              }
+            } else {
+              collectMs = 0;
+              sampleFrames = [];
+              progressEl.style.width = "0%";
+              hintEl.textContent = "请正脸直视镜头并保持稳定约 5 秒";
+            }
+          } else {
+            progressEl.style.width = "100%";
+            hintEl.textContent = "参数已锁定，点击开始分析，或点击“再来一次”重新采样";
+          }
+        } else if (!metricsCollected) {
+          collectMs = 0;
+          progressEl.style.width = "0%";
+          sampleFrames = [];
+          lastNose = null;
+          hintEl.textContent = "未检测到人脸，请将面部移入画面";
+        }
+
+        ctx.restore();
+      });
+
+      faceCamera = new Camera(camEl, {
+        onFrame: async () => {
+          await faceDetector.send({ image: camEl });
+        },
+        width: 960,
+        height: 720
+      });
+
+      await faceCamera.start();
+      setTipRotation(false);
+      camStatusEl.textContent = "摄像头已启动，进入采集流程";
+    }
+
+    function stopCamera() {
+      if (faceCamera) {
+        faceCamera.stop();
+        faceCamera = null;
+      }
+      setTipRotation(false);
+      const ctx = overlayEl.getContext("2d");
+      ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+      collectMs = 0;
+      progressEl.style.width = "0%";
+      sampleFrames = [];
+      lastNose = null;
+      hintEl.textContent = "摄像头已关闭，可重新启动";
+      camStatusEl.textContent = "";
+      metricsCollected = false;
+      runBtn.disabled = true;
+    }
+
+    runBtn.addEventListener("click", () => runAnalysis("手动触发"));
+    MM.$("again").addEventListener("click", resetForAnother);
+
+    async function initPage() {
+      await MM.ready;
+      systemEl.value = MM.getPromptOverride(TYPE) || window.PROMPTS.system;
+      setStoryStep(storyStep);
+      try {
+        await MM.ensureCameraPermission({ video: true, audio: false });
+        await startCamera();
+      } catch (err) {
+        setTipRotation(false);
+        MM.status(camStatusEl, `摄像头权限失败：${err.message || err}`, "error");
+      }
+    }
+
+    initPage();
+  </script>
+</body>
+</html>
+
+

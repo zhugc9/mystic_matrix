@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智能手相</title>
+  <link rel="stylesheet" href="../common/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="../common/storage.js"></script>
+  <script src="../common/app.js"></script>
+  <script src="../common/immersive.js"></script>
+  <script src="./prompts.js"></script>
+  <style>
+    .hand-stage .scanline {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(243, 196, 109, 0.9), transparent);
+      box-shadow: 0 0 14px rgba(243, 196, 109, 0.55);
+      animation: handScan 2.8s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes handScan {
+      0% { top: 8%; opacity: 0.3; }
+      50% { top: 92%; opacity: 0.95; }
+      100% { top: 8%; opacity: 0.3; }
+    }
+
+    .tip-list {
+      margin: 0;
+      padding-left: 18px;
+      color: #e8d7b4;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .profile-card {
+      max-height: none;
+      overflow: visible;
+      transition: none;
+    }
+
+    .profile-head {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+
+    .scene-stage {
+      opacity: 0;
+      transform: translateY(12px);
+      max-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transition: opacity 0.36s ease, transform 0.36s ease, max-height 0.36s ease;
+    }
+
+    .scene-stage.active {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: 2400px;
+      overflow: visible;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body class="ancient-page">
+  <header class="topbar">
+    <div>
+      <h1 class="title">智能手相</h1>
+      <p class="subtitle">沉浸流程：填写来意补述 -> 左手稳定采样 -> 右手稳定采样 -> 确认后开始分析。</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card profile-card scene-stage active" id="profile-panel" data-step="1">
+      <div class="profile-head">
+        <h2 style="margin:0;">第一幕 · 立意</h2>
+      </div>
+      <div class="grid cols-3">
+        <div>
+          <label for="user-name">称呼</label>
+          <input id="user-name" placeholder="例如：青玄" />
+        </div>
+        <div>
+          <label for="user-gender">性别</label>
+          <select id="user-gender">
+            <option value="">保密</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
+        </div>
+        <div>
+          <label for="user-birth">出生日期</label>
+          <input id="user-birth" type="date" />
+        </div>
+        <div>
+          <label for="user-location">出生地/常驻地</label>
+          <input id="user-location" placeholder="例如：北京" />
+        </div>
+      </div>
+      <div class="grid" style="margin-top: 10px;">
+        <div>
+          <label for="question">来意补述（可选）</label>
+          <input id="question" placeholder="例如：我近期在工作和关系上有些纠结，想听指引。" />
+        </div>
+      </div>
+    </section>
+
+    <section class="card scene-stage active" data-step="2">
+      <h2>第二幕 · 双手采样</h2>
+      <div class="ritual-steps">
+        <div class="ritual-step active">1. 左手张开稳定 5 秒</div>
+        <div class="ritual-step">2. 右手张开稳定 5 秒</div>
+        <div class="ritual-step">3. 参数锁定并手动确认分析</div>
+      </div>
+      <div class="sensor-panel" style="margin-top: 10px;">
+        <div class="sensor-stage hand-stage">
+          <video id="cam" class="sensor-video" playsinline muted></video>
+          <canvas id="overlay" class="sensor-overlay"></canvas>
+          <div class="scanline"></div>
+        </div>
+        <div>
+          <div class="sensor-hint" id="gesture-hint">启动摄像头后，先采集左手，再采集右手。每只手都要完整入镜并稳定 5 秒。</div>
+          <div class="status" id="capture-side">当前采集：左手（先天）</div>
+          <div class="progress-wrap" style="margin: 10px 0 12px;">
+            <div class="progress-bar" id="gesture-progress"></div>
+          </div>
+          <div class="controls">
+            <button class="btn primary" id="run" disabled>开始分析</button>
+          </div>
+          <div class="status" id="cam-status"></div>
+          <ul class="tip-list">
+            <li>掌心朝向镜头，手腕到指尖完整入框，五指尽量张开并自然放松。</li>
+            <li>左手采完再换右手，换手时停 1 秒后再开始稳定。</li>
+            <li>光线不足时请靠近明亮处；识别抖动时，手掌靠近镜头到 25~40 厘米。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card scene-stage" data-step="3">
+      <h2>第三幕 · 参数校核</h2>
+      <div class="ritual-steps">
+        <div class="ritual-step active">左手 = 先天底色</div>
+        <div class="ritual-step">右手 = 后天实践</div>
+      </div>
+      <div class="grid cols-2" style="margin-top: 10px;">
+        <div>
+          <label for="leftHandType">左手手型判定</label>
+          <select id="leftHandType">
+            <option value="土型手">土型手</option>
+            <option value="风型手">风型手</option>
+            <option value="火型手">火型手</option>
+            <option value="水型手">水型手</option>
+          </select>
+        </div>
+        <div>
+          <label for="rightHandType">右手手型判定</label>
+          <select id="rightHandType">
+            <option value="土型手">土型手</option>
+            <option value="风型手">风型手</option>
+            <option value="火型手">火型手</option>
+            <option value="水型手">水型手</option>
+          </select>
+        </div>
+        <div>
+          <label for="leftPalmRatio">左手掌指比 (0.80 ~ 1.40)</label>
+          <input id="leftPalmRatio" type="number" step="0.01" min="0.8" max="1.4" value="1.02" />
+        </div>
+        <div>
+          <label for="rightPalmRatio">右手掌指比 (0.80 ~ 1.40)</label>
+          <input id="rightPalmRatio" type="number" step="0.01" min="0.8" max="1.4" value="1.02" />
+        </div>
+        <div>
+          <label for="leftFingerRatio">左手食指/无名指比例 (0.70 ~ 1.30)</label>
+          <input id="leftFingerRatio" type="number" step="0.01" min="0.7" max="1.3" value="1.00" />
+        </div>
+        <div>
+          <label for="rightFingerRatio">右手食指/无名指比例 (0.70 ~ 1.30)</label>
+          <input id="rightFingerRatio" type="number" step="0.01" min="0.7" max="1.3" value="1.00" />
+        </div>
+        <div>
+          <label for="leftThumbAngle">左手拇指张开角度 (20 ~ 100)</label>
+          <input id="leftThumbAngle" type="number" step="1" min="20" max="100" value="56" />
+        </div>
+        <div>
+          <label for="rightThumbAngle">右手拇指张开角度 (20 ~ 100)</label>
+          <input id="rightThumbAngle" type="number" step="1" min="20" max="100" value="56" />
+        </div>
+      </div>
+      <div id="status" class="status"></div>
+      <div class="analysis-progress-wrap">
+        <div class="analysis-progress-bar" id="analysis-progress"></div>
+      </div>
+    </section>
+
+    <section class="card scene-stage" data-step="3">
+      <h2>术式咒文（可改）</h2>
+      <textarea id="systemPrompt"></textarea>
+    </section>
+
+    <section class="card scene-stage" data-step="4">
+      <h2>第四幕 · 神谕降临</h2>
+      <div id="result" class="result"></div>
+      <div class="result-actions">
+        <button class="btn" id="again">再来一次</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const TYPE = "palmistry";
+    const COLLECT_MS = 5000;
+    const STABLE_MOVE_THRESHOLD = 0.014;
+
+    const statusEl = MM.$("status");
+    const systemEl = MM.$("systemPrompt");
+    const resultEl = MM.$("result");
+    const camStatusEl = MM.$("cam-status");
+    const captureSideEl = MM.$("capture-side");
+    const gestureHintEl = MM.$("gesture-hint");
+    const gestureProgressEl = MM.$("gesture-progress");
+    const analysisProgressEl = MM.$("analysis-progress");
+    const camEl = MM.$("cam");
+    const overlayEl = MM.$("overlay");
+    const runBtn = MM.$("run");
+
+    let handCamera = null;
+    let handDetector = null;
+    let isRunning = false;
+    let requestInFlight = false;
+    let collectMs = 0;
+    let lastFrameTs = 0;
+    let autoCooldownUntil = 0;
+    let lastWrist = null;
+    let metricsCollected = false;
+    let progressTimer = null;
+    let storyStep = 2;
+    let targetSide = "left";
+    const sideDone = { left: false, right: false };
+    const sideSamples = { left: [], right: [] };
+
+    const startupTips = [
+      "视觉引擎加载中，首次启动会稍慢。",
+      "先采集左手，再采集右手，每只手稳定 5 秒。",
+      "建议手掌距离镜头 25~40 厘米，五指自然张开。"
+    ];
+    let tipTimer = null;
+
+    function dist(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function angleDeg(from, center, to) {
+      const v1x = from.x - center.x;
+      const v1y = from.y - center.y;
+      const v2x = to.x - center.x;
+      const v2y = to.y - center.y;
+      const dot = v1x * v2x + v1y * v2y;
+      const mag1 = Math.sqrt(v1x * v1x + v1y * v1y);
+      const mag2 = Math.sqrt(v2x * v2x + v2y * v2y);
+      const denom = Math.max(1e-6, mag1 * mag2);
+      const cos = Math.min(1, Math.max(-1, dot / denom));
+      return Math.round(Math.acos(cos) * (180 / Math.PI));
+    }
+
+    function isOpenPalm(landmarks) {
+      const fingers = [[8, 6], [12, 10], [16, 14], [20, 18]];
+      const openCount = fingers.reduce((sum, [tip, pip]) => sum + (landmarks[tip].y < landmarks[pip].y ? 1 : 0), 0);
+      return openCount >= 4;
+    }
+
+    function classifyHandType(palmRatio, fingerRatio) {
+      if (palmRatio < 0.95 && fingerRatio < 0.96) return "土型手";
+      if (palmRatio < 0.98 && fingerRatio >= 1.02) return "风型手";
+      if (palmRatio >= 1.08 && fingerRatio < 1.0) return "火型手";
+      return "水型手";
+    }
+
+    function extractHandMetrics(landmarks) {
+      const wrist = landmarks[0];
+      const middleMcp = landmarks[9];
+      const indexMcp = landmarks[5];
+      const pinkyMcp = landmarks[17];
+      const indexTip = landmarks[8];
+      const ringTip = landmarks[16];
+      const ringMcp = landmarks[13];
+      const thumbTip = landmarks[4];
+
+      const palmLength = dist(wrist, middleMcp);
+      const palmWidth = dist(indexMcp, pinkyMcp);
+      const palmRatio = Number((palmLength / Math.max(1e-6, palmWidth)).toFixed(2));
+      const indexLen = dist(indexTip, indexMcp);
+      const ringLen = dist(ringTip, ringMcp);
+      const fingerRatio = Number((indexLen / Math.max(1e-6, ringLen)).toFixed(2));
+      const thumbAngle = angleDeg(thumbTip, wrist, indexMcp);
+      const handType = classifyHandType(palmRatio, fingerRatio);
+      return { handType, palmRatio, fingerRatio, thumbAngle };
+    }
+
+    function sideId(side, key) {
+      const prefix = side === "left" ? "left" : "right";
+      return `${prefix}${key}`;
+    }
+
+    function applyMetrics(side, metrics) {
+      MM.$(sideId(side, "HandType")).value = metrics.handType;
+      MM.$(sideId(side, "PalmRatio")).value = metrics.palmRatio;
+      MM.$(sideId(side, "FingerRatio")).value = metrics.fingerRatio;
+      MM.$(sideId(side, "ThumbAngle")).value = Math.min(100, Math.max(20, metrics.thumbAngle));
+    }
+
+    function readMetrics(side) {
+      return {
+        handType: MM.$(sideId(side, "HandType")).value,
+        palmRatio: Number(MM.$(sideId(side, "PalmRatio")).value),
+        fingerRatio: Number(MM.$(sideId(side, "FingerRatio")).value),
+        thumbAngle: Number(MM.$(sideId(side, "ThumbAngle")).value)
+      };
+    }
+
+    function avg(values) {
+      if (!values.length) return 0;
+      return values.reduce((s, n) => s + n, 0) / values.length;
+    }
+
+    function averageMetrics(samples) {
+      const palmRatio = Number(avg(samples.map((x) => x.palmRatio)).toFixed(2));
+      const fingerRatio = Number(avg(samples.map((x) => x.fingerRatio)).toFixed(2));
+      const thumbAngle = Math.round(avg(samples.map((x) => x.thumbAngle)));
+      const handType = classifyHandType(palmRatio, fingerRatio);
+      return { handType, palmRatio, fingerRatio, thumbAngle };
+    }
+
+    function resetCaptureState() {
+      targetSide = "left";
+      sideDone.left = false;
+      sideDone.right = false;
+      sideSamples.left = [];
+      sideSamples.right = [];
+      collectMs = 0;
+      lastWrist = null;
+      metricsCollected = false;
+      runBtn.disabled = true;
+      captureSideEl.textContent = "当前采集：左手（先天）";
+    }
+
+    function setStoryStep(step) {
+      storyStep = step;
+      document.querySelectorAll(".scene-stage").forEach((el) => {
+        const need = Number(el.dataset.step || "1");
+        el.classList.toggle("active", need <= step);
+      });
+    }
+
+    function nextHintText() {
+      if (metricsCollected) return "双手参数已锁定，点击开始分析，或点击“再来一次”重新采样";
+      if (targetSide === "left") return "请张开左手并保持稳定 5 秒完成先天采样";
+      return "左手完成，请切换右手并稳定 5 秒完成后天采样";
+    }
+
+    function getUserProfile() {
+      return {
+        name: MM.$("user-name").value.trim() || "未署名",
+        gender: MM.$("user-gender").value || "未说明",
+        birth: MM.$("user-birth").value || "未填写",
+        location: MM.$("user-location").value.trim() || "未填写"
+      };
+    }
+
+    function profileText() {
+      const p = getUserProfile();
+      return `来访者信息：称呼${p.name}，性别${p.gender}，出生日期${p.birth}，地区${p.location}。`;
+    }
+
+    function profilePromptBlock(question) {
+      const p = getUserProfile();
+      return [
+        "【用户填写信息】",
+        `- 称呼：${p.name}`,
+        `- 性别：${p.gender}`,
+        `- 出生日期：${p.birth}`,
+        `- 地区：${p.location}`,
+        `- 来意补述：${question || "未填写"}`
+      ].join("\n");
+    }
+
+    function startAnalyzeProgress() {
+      stopAnalyzeProgress();
+      let pct = 0;
+      analysisProgressEl.style.width = "0%";
+      progressTimer = setInterval(() => {
+        pct = Math.min(92, pct + 2);
+        analysisProgressEl.style.width = `${pct}%`;
+      }, 130);
+    }
+
+    function stopAnalyzeProgress(done) {
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+      analysisProgressEl.style.width = done ? "100%" : "0%";
+      if (done) {
+        setTimeout(() => {
+          analysisProgressEl.style.width = "0%";
+        }, 600);
+      }
+    }
+
+    function setTipRotation(active) {
+      if (tipTimer) {
+        clearInterval(tipTimer);
+        tipTimer = null;
+      }
+      if (!active) return;
+      let idx = 0;
+      camStatusEl.textContent = startupTips[idx];
+      tipTimer = setInterval(() => {
+        idx = (idx + 1) % startupTips.length;
+        camStatusEl.textContent = startupTips[idx];
+      }, 1500);
+    }
+
+    function resetForAnother() {
+      resetCaptureState();
+      gestureProgressEl.style.width = "0%";
+      resultEl.innerHTML = "";
+      gestureHintEl.textContent = nextHintText();
+      setStoryStep(2);
+      MM.status(statusEl, "已重置，请重新完成左右手采样", "ok");
+    }
+
+    async function runAnalysis(triggerSource = "手动") {
+      if (!sideDone.left || !sideDone.right || !metricsCollected) {
+        MM.status(statusEl, "请先完成左右手采样", "error");
+        return;
+      }
+      if (isRunning || requestInFlight) return;
+      requestInFlight = true;
+      isRunning = true;
+      runBtn.disabled = true;
+
+      try {
+        if (window.MMImmersive) {
+          await window.MMImmersive.showRitual({
+            title: "掌纹推演中",
+            subtitle: "正在连通命理模型，请稍候",
+            duration: 760
+          });
+        }
+        startAnalyzeProgress();
+        MM.status(statusEl, `正在生成解读（${triggerSource}）...`);
+
+        const handData = {
+          left: readMetrics("left"),
+          right: readMetrics("right")
+        };
+        const question = MM.$("question").value.trim();
+
+        const userPrompt = `${profilePromptBlock(question)}\n\n${window.PROMPTS.generateUserPrompt(handData, question, getUserProfile())}`;
+        const content = await MM.chat({ system: systemEl.value.trim(), user: userPrompt });
+
+        MM.renderMarkdown(resultEl, content);
+        setStoryStep(4);
+        MM.saveRecord({
+          type: TYPE,
+          summary: MM.summarize(`左${handData.left.handType}/右${handData.right.handType} ${question || "自动解读"}`, 90),
+          fullContent: content,
+          meta: { handData, question, triggerSource, profile: profileText() }
+        });
+        MM.status(statusEl, "完成并已保存到历史", "ok");
+        stopAnalyzeProgress(true);
+      } catch (err) {
+        stopAnalyzeProgress(false);
+        MM.status(statusEl, err.message || String(err), "error");
+      } finally {
+        isRunning = false;
+        requestInFlight = false;
+        runBtn.disabled = false;
+        autoCooldownUntil = performance.now() + 1200;
+      }
+    }
+
+    async function startCamera() {
+      if (handCamera) return;
+      setTipRotation(true);
+      handDetector = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      handDetector.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+      const ctx = overlayEl.getContext("2d");
+
+      handDetector.onResults((results) => {
+        const w = camEl.videoWidth || 640;
+        const h = camEl.videoHeight || 480;
+        overlayEl.width = w;
+        overlayEl.height = h;
+
+        ctx.save();
+        ctx.clearRect(0, 0, w, h);
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length) {
+          const landmarks = results.multiHandLandmarks[0];
+          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: "#f3c46d", lineWidth: 2 });
+          drawLandmarks(ctx, landmarks, { color: "#ffe1af", lineWidth: 1, radius: 2 });
+
+          const now = performance.now();
+          const delta = Math.min(100, now - (lastFrameTs || now));
+          lastFrameTs = now;
+          const open = isOpenPalm(landmarks);
+          const wrist = landmarks[0];
+          const movement = lastWrist ? dist(wrist, lastWrist) : 0;
+          const stable = movement < STABLE_MOVE_THRESHOLD;
+          lastWrist = { x: wrist.x, y: wrist.y };
+          const rawLabel = results.multiHandedness && results.multiHandedness[0]
+            ? results.multiHandedness[0].label
+            : "";
+          const detectedSide = rawLabel ? (rawLabel === "Left" ? "right" : "left") : "";
+          const handedness = detectedSide ? (detectedSide === "left" ? "左手" : "右手") : "未知";
+          const sideMatchesTarget = !detectedSide || detectedSide === targetSide;
+
+          if (isRunning || requestInFlight || now <= autoCooldownUntil) {
+            collectMs = 0;
+            sideSamples[targetSide] = [];
+            gestureProgressEl.style.width = "0%";
+            if (requestInFlight) gestureHintEl.textContent = "已发送请求，等待结果返回";
+            else if (isRunning) gestureHintEl.textContent = "分析中，请稍候";
+            else gestureHintEl.textContent = "冷却中，请稍候";
+          } else if (!metricsCollected) {
+            if (open && stable && sideMatchesTarget) {
+              collectMs += delta;
+              sideSamples[targetSide].push(extractHandMetrics(landmarks));
+              const ratio = Math.min(1, collectMs / COLLECT_MS);
+              gestureProgressEl.style.width = `${ratio * 100}%`;
+              gestureHintEl.textContent = ratio < 1
+                ? `采集中（${targetSide === "left" ? "左手" : "右手"}）：请保持张开与稳定（检测到：${handedness}）`
+                : `采样完成（${targetSide === "left" ? "左手" : "右手"}），正在锁定参数`;
+
+              if (ratio >= 1) {
+                const averaged = averageMetrics(sideSamples[targetSide]);
+                applyMetrics(targetSide, averaged);
+                sideDone[targetSide] = true;
+                sideSamples[targetSide] = [];
+                collectMs = 0;
+                lastWrist = null;
+                if (targetSide === "left") {
+                  targetSide = "right";
+                  captureSideEl.textContent = "当前采集：右手（后天）";
+                  gestureProgressEl.style.width = "0%";
+                  gestureHintEl.textContent = nextHintText();
+                } else {
+                  metricsCollected = true;
+                  runBtn.disabled = false;
+                  gestureProgressEl.style.width = "100%";
+                  gestureHintEl.textContent = nextHintText();
+                  captureSideEl.textContent = "采集完成：左右手参数已锁定";
+                  setStoryStep(3);
+                }
+              }
+            } else {
+              collectMs = 0;
+              sideSamples[targetSide] = [];
+              gestureProgressEl.style.width = "0%";
+              if (!open) {
+                gestureHintEl.textContent = `请张开${targetSide === "left" ? "左手" : "右手"}，五指自然分开`;
+              } else if (!sideMatchesTarget) {
+                gestureHintEl.textContent = `当前需要${targetSide === "left" ? "左手" : "右手"}采集，检测到的是${handedness}`;
+              } else {
+                gestureHintEl.textContent = `手部抖动较大，请保持${targetSide === "left" ? "左手" : "右手"}稳定 5 秒`;
+              }
+            }
+          } else {
+            gestureProgressEl.style.width = "100%";
+            gestureHintEl.textContent = nextHintText();
+          }
+        } else if (!metricsCollected) {
+          collectMs = 0;
+          sideSamples[targetSide] = [];
+          lastWrist = null;
+          gestureProgressEl.style.width = "0%";
+          gestureHintEl.textContent = `未检测到${targetSide === "left" ? "左手" : "右手"}，请把手移入画面`;
+        }
+
+        ctx.restore();
+      });
+
+      handCamera = new Camera(camEl, {
+        onFrame: async () => {
+          await handDetector.send({ image: camEl });
+        },
+        width: 960,
+        height: 720
+      });
+
+      await handCamera.start();
+      setTipRotation(false);
+      camStatusEl.textContent = "摄像头已启动，进入采集流程";
+    }
+
+    function stopCamera() {
+      if (handCamera) {
+        handCamera.stop();
+        handCamera = null;
+      }
+      setTipRotation(false);
+      const ctx = overlayEl.getContext("2d");
+      ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+      collectMs = 0;
+      lastWrist = null;
+      sideSamples.left = [];
+      sideSamples.right = [];
+      gestureProgressEl.style.width = "0%";
+      gestureHintEl.textContent = "摄像头已关闭，可重新启动";
+      camStatusEl.textContent = "";
+      resetCaptureState();
+    }
+
+    runBtn.addEventListener("click", () => runAnalysis("手动触发"));
+    MM.$("again").addEventListener("click", resetForAnother);
+
+    async function initPage() {
+      await MM.ready;
+      systemEl.value = MM.getPromptOverride(TYPE) || window.PROMPTS.system;
+      resetCaptureState();
+      gestureHintEl.textContent = nextHintText();
+      setStoryStep(storyStep);
+      try {
+        await MM.ensureCameraPermission({ video: true, audio: false });
+        await startCamera();
+      } catch (err) {
+        setTipRotation(false);
+        MM.status(camStatusEl, `摄像头权限失败：${err.message || err}`, "error");
+      }
+    }
+
+    initPage();
+  </script>
+</body>
+</html>
+
+

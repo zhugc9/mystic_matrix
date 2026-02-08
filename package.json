@@ -1,0 +1,53 @@
+{
+  "name": "mystic-matrix",
+  "version": "1.0.0",
+  "description": "Mystic Matrix desktop edition",
+  "main": "desktop/main.js",
+  "author": "Mystic Matrix",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "electron .",
+    "build:win": "electron-builder --win portable --x64",
+    "pack:dir": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "com.mystic.matrix",
+    "productName": "Mystic Matrix",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "index.html",
+      "common/**/*",
+      "astro/**/*",
+      "face_reading/**/*",
+      "history/**/*",
+      "iching/**/*",
+      "palmistry/**/*",
+      "prompt_center/**/*",
+      "tarot/**/*",
+      "使用说明书.txt"
+    ],
+    "extraMetadata": {
+      "main": "desktop/main.js"
+    },
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "MysticMatrix-Portable-${version}.exe"
+    }
+  }
+}
