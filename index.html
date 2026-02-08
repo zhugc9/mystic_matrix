@@ -3,91 +3,245 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>赛博玄学矩阵</title>
+  <title>赛博玄学矩阵 · MYSTIC MATRIX</title>
   <link rel="stylesheet" href="./common/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js" crossorigin="anonymous"></script>
   <script src="./common/storage.js"></script>
   <script src="./common/app.js"></script>
   <script src="./common/immersive.js"></script>
+  <style>
+    /* Specific Home Page Overrides */
+    
+    /* Cyber-Void Background overlay */
+    .void-overlay {
+        position: fixed; inset: 0; pointer-events: none; z-index: -1;
+        background: radial-gradient(circle at 50% 50%, transparent 0%, rgba(5, 8, 20, 0.8) 100%);
+    }
+
+    /* Hero Section */
+    .hero {
+        text-align: center;
+        padding: 40px 20px 20px;
+        position: relative;
+    }
+    .hero-title {
+        font-family: 'Cinzel', serif;
+        font-size: 3rem;
+        background: linear-gradient(to bottom, #fff, #aaa);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: 4px;
+        margin-bottom: 10px;
+        text-shadow: 0 0 30px rgba(255,255,255,0.2);
+    }
+    .hero-subtitle {
+        color: #d4af37;
+        font-size: 0.9rem;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        opacity: 0.8;
+    }
+
+    /* Destiny Echo - Memory Shards */
+    .shard-grid {
+        display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+        margin: 20px 0;
+        perspective: 1000px;
+    }
+    .shard-item {
+        position: relative;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        user-select: none;
+        min-width: 140px;
+        text-align: left;
+        display: flex; flex-direction: column;
+    }
+    .shard-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .shard-item.selected {
+        background: rgba(212, 175, 55, 0.15);
+        border-color: #d4af37;
+        box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+    }
+    .shard-icon {
+        font-size: 1.2rem; margin-bottom: 6px; opacity: 0.8;
+    }
+    .shard-title {
+        font-size: 0.9rem; color: #fff; font-weight: bold;
+    }
+    .shard-meta {
+        font-size: 0.75rem; color: #888; margin-top: 4px;
+    }
+
+    /* Report Generation Animation Overlay */
+    #ritual-overlay {
+        position: fixed; inset: 0; z-index: 1000;
+        background: #000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.5s;
+    }
+    #ritual-overlay.active { opacity: 1; pointer-events: auto; }
+    
+    .ritual-particles {
+        position: absolute; width:100%; height:100%;
+    }
+    .ritual-center {
+        position: relative; z-index: 10;
+        width: 120px; height: 120px;
+        border: 2px solid #d4af37;
+        border-radius: 50%;
+        display: grid; place-items: center;
+        box-shadow: 0 0 50px #d4af37;
+        animation: pulseRitual 2s infinite;
+    }
+    .ritual-text {
+        margin-top: 40px; color: #d4af37; font-family: 'Cinzel', serif; letter-spacing: 2px;
+        animation: fadeIn 1s;
+    }
+
+    @keyframes pulseRitual {
+        0% { transform: scale(0.95); box-shadow: 0 0 20px rgba(212,175,55,0.4); }
+        50% { transform: scale(1.05); box-shadow: 0 0 60px rgba(212,175,55,0.8); }
+        100% { transform: scale(0.95); box-shadow: 0 0 20px rgba(212,175,55,0.4); }
+    }
+
+    /* Module Entry Icons Override */
+    .module-icon {
+        font-size: 2rem; margin-bottom: 10px; display: block;
+        background: linear-gradient(135deg, #d4af37, #f7ef8a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+  </style>
 </head>
 <body>
   <canvas id="matrix-bg" class="matrix-bg"></canvas>
+  <div class="void-overlay"></div>
 
-  <header class="topbar">
-    <h1 class="title">赛博玄学矩阵</h1>
-    <p class="subtitle">一处入口，直达全部模块。先配置接口，再开始占卜。</p>
+  <!-- Ritual Animation Overlay -->
+  <div id="ritual-overlay">
+      <div id="particles-container" class="ritual-particles"></div>
+      <div class="ritual-center">
+          <span style="font-size:2rem; color:#fff;">👁️</span>
+      </div>
+      <div class="ritual-text">命运织机 · 正在聚合线索...</div>
+  </div>
+
+  <header class="hero">
+    <h1 class="hero-title">MYSTIC MATRIX</h1>
+    <p class="hero-subtitle">赛博玄学矩阵</p>
   </header>
 
   <main class="container">
-    <section class="card">
-      <h2>模块入口</h2>
+    
+    <!-- Destiny Echo Section -->
+    <section class="card" id="echo-section">
+      <div class="profile-head" style="text-align: center; margin-bottom: 20px;">
+          <h2 style="margin:0; color:#d4af37; font-family: 'Cinzel', serif;">DESTINY ECHO · 命运回响</h2>
+          <p style="color:rgba(255,255,255,0.4); font-size:0.8rem; margin-top:5px;">今日占卜记忆碎片</p>
+      </div>
+      
+      <!-- Memory Shards (Grid) -->
+      <div id="shard-grid" class="shard-grid">
+          <!-- Filled by JS -->
+          <div style="padding:20px; text-align:center; color:#666;">暂无今日记忆碎片，请先探索各模块。</div>
+      </div>
+
+      <div class="controls" style="justify-content: center; margin-top: 25px;">
+          <button class="btn primary" id="generate-echo" disabled style="padding: 12px 40px; font-size: 1.1rem;">启动聚合仪式</button>
+          <button class="btn small" id="refresh-echo" style="position:absolute; right:20px; top:20px; opacity:0.5;">刷新</button>
+      </div>
+
+      <div id="echo-result" class="result echo-result" style="margin-top:30px; display:none;"></div>
+      <div id="echo-status" class="status" style="text-align:center;"></div>
+    </section>
+
+    <!-- Modules Grid -->
+    <section class="card" style="border:none; background:transparent; box-shadow:none;">
       <div class="entry-grid">
         <a class="entry-card" href="./tarot/index.html">
-          <h3>神秘塔罗</h3>
-          <p>三张牌阵 + 手势解读，支持补充心声后生成结果。</p>
+          <span class="module-icon">🎴</span>
+          <h3>塔罗</h3>
+          <p>圣三角牌阵 · 心理投射</p>
         </a>
         <a class="entry-card" href="./iching/index.html">
+          <span class="module-icon">☯️</span>
           <h3>赛博易经</h3>
-          <p>握拳聚气后张手起卦，自动完成本卦与变卦解读。</p>
+          <p>六爻排盘 · 系统推演</p>
         </a>
         <a class="entry-card" href="./palmistry/index.html">
+          <span class="module-icon">✋</span>
           <h3>智能手相</h3>
-          <p>张手停稳自动采样，掌型与比例一键进入分析。</p>
+          <p>掌纹解码 · 天赋蓝图</p>
         </a>
         <a class="entry-card" href="./face_reading/index.html">
+          <span class="module-icon">👁️</span>
           <h3>智能面相</h3>
-          <p>正脸定神自动触发，三庭五眼参数即时更新。</p>
+          <p>生物特征 · 流年数据</p>
         </a>
         <a class="entry-card" href="./astro/index.html">
+          <span class="module-icon">🪐</span>
           <h3>星盘实验室</h3>
-          <p>本命盘与合盘双模式，内置星盘可视化。</p>
+          <p>星轨推演 · 业力导航</p>
         </a>
         <a class="entry-card" href="./history/index.html">
-          <h3>命运回响</h3>
-          <p>统一管理历史记录，支持当日多模块聚合解读。</p>
+          <span class="module-icon">📜</span>
+          <h3>历史档案</h3>
+          <p>全量记录 · 数据回溯</p>
         </a>
         <a class="entry-card" href="./prompt_center/index.html">
+          <span class="module-icon">🧠</span>
           <h3>提示词中心</h3>
-          <p>左侧选模块，右侧直接改提示词并保存生效。</p>
+          <p>AI 角色深度定制</p>
         </a>
       </div>
     </section>
 
-    <section class="card">
-      <h2>接口配置</h2>
-      <div class="grid cols-2">
-        <div>
-          <label for="api-provider">服务名称（可选）</label>
-          <input id="api-provider" placeholder="例如：深度求索 / 其他服务" />
-        </div>
-        <div>
-          <label for="api-token">接口密钥</label>
-          <input id="api-token" placeholder="请输入密钥" />
-        </div>
-        <div>
-          <label for="api-endpoint">对话接口地址</label>
-          <input id="api-endpoint" placeholder="https://api.deepseek.com/chat/completions" />
-        </div>
-        <div>
-          <label for="api-model">模型名称</label>
-          <input id="api-model" placeholder="deepseek-reasoner" />
-        </div>
+    <!-- Config Section (Collapsible) -->
+    <section class="card" style="opacity: 0.9;">
+      <h2 onclick="this.parentElement.querySelector('.config-body').classList.toggle('hidden')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:1rem; color:#888;">系统设置 (API & 权限)</span>
+          <span style="font-size:0.8rem; opacity:0.5;">▼</span>
+      </h2>
+      <div class="config-body hidden" style="margin-top:15px;">
+          <div class="grid cols-2">
+            <div>
+              <label for="api-provider">服务名称</label>
+              <input id="api-provider" placeholder="例如：深度求索 / 其他服务" />
+            </div>
+            <div>
+              <label for="api-token">接口密钥</label>
+              <input id="api-token" placeholder="请输入密钥" type="password" />
+            </div>
+            <div>
+              <label for="api-endpoint">对话接口地址</label>
+              <input id="api-endpoint" placeholder="https://api.deepseek.com/chat/completions" />
+            </div>
+            <div>
+              <label for="api-model">模型名称</label>
+              <input id="api-model" placeholder="deepseek-reasoner" />
+            </div>
+          </div>
+          <div class="controls">
+            <button class="btn primary" id="save-api">保存配置</button>
+            <button class="btn" id="clear-api">清空密钥</button>
+            <button class="btn" id="grant-camera">摄像头权限</button>
+          </div>
+          <div id="api-status" class="status"></div>
+          
+          <div class="kv" id="quick-stats" style="margin-top:20px; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;"></div>
       </div>
-      <div class="controls">
-        <button class="btn primary" id="save-api">保存配置</button>
-        <button class="btn" id="clear-api">清空密钥</button>
-        <button class="btn" id="grant-camera">初始化摄像头权限</button>
-      </div>
-      <div id="api-status" class="status"></div>
     </section>
 
-    <section class="card" id="startup-check">
-      <h2>启动检查</h2>
-      <div class="kv" id="quick-stats"></div>
-      <div class="controls">
-        <button class="btn" id="refresh-stats">刷新状态</button>
-      </div>
-    </section>
   </main>
 
   <script>
@@ -97,34 +251,193 @@
     const modelEl = MM.$("api-model");
     const statusEl = MM.$("api-status");
     const statsEl = MM.$("quick-stats");
+    
+    // Echo Elements
+    const shardGridEl = MM.$("shard-grid");
+    const echoResultEl = MM.$("echo-result");
+    const echoStatusEl = MM.$("echo-status");
+    const genEchoBtn = MM.$("generate-echo");
+    const ritualOverlay = MM.$("ritual-overlay");
+
+    const HISTORY_SYSTEM_DEFAULT = [
+      "你是赛博玄学矩阵的总分析师，代号“命运回响”。",
+      "你的任务：将用户今日的多维占卜数据（碎片）拼凑成一幅完整的命运全息图。",
+      "分析逻辑：寻找不同模块间的共振点（一致性）和冲突点（矛盾性）。",
+      "输出要求：",
+      "1. **今日能量天气**：一句话定义今天的整体基调。",
+      "2. **全息洞察**：综合面相、手相、卦象等信息，给出深度的心理/运势侧写。",
+      "3. **关键行动指令**：3条绝对可执行、高优先级的建议。",
+      "4. **禁忌算法**：今日绝对不可做的一件事。",
+      "风格：冷静、神秘、带有未来科技感。"
+    ].join("\n");
 
     function renderStats() {
       const all = MM.getAllRecords();
       const todayKey = new Date().toISOString().slice(0, 10);
       const today = all.filter((r) => String(r.timestamp || "").startsWith(todayKey));
       const lines = [
-        `记录总数：${all.length}`,
-        `今日记录：${today.length}`,
-        `接口密钥：${MM.getToken() ? "已配置" : "未配置"}`,
-        `接口地址：${MM.getApiBaseUrl()}`,
-        `模型：${MM.getApiModel()}`
+        `System Status: Online`,
+        `Records Total: ${all.length}`,
+        `Today's Data: ${today.length} entries`,
+        `API Link: ${MM.getToken() ? "Connected" : "Disconnected"}`
       ];
       statsEl.innerHTML = "";
       lines.forEach((line) => {
         const row = document.createElement("div");
         row.className = "kv-item";
+        row.style.border = "none"; row.style.background = "transparent"; row.style.padding = "2px 0";
         row.textContent = line;
         statsEl.appendChild(row);
       });
     }
 
+    // --- Destiny Echo Logic ---
+    function getIconForType(type) {
+        const map = { tarot:'🎴', iching:'☯️', palmistry:'✋', face:'👁️', astro:'🪐' };
+        return map[type] || '📄';
+    }
+
+    function getNameForType(type) {
+        const map = { tarot:'塔罗', iching:'易经', palmistry:'手相', face:'面相', astro:'星盘' };
+        return map[type] || '未知';
+    }
+
+    function loadShards() {
+        const todayKey = new Date().toISOString().slice(0, 10);
+        const all = MM.getAllRecords();
+        const todayRows = all.filter(r => 
+            String(r.timestamp || "").startsWith(todayKey) && 
+            r.type !== 'history' && r.type !== 'echo'
+        );
+        
+        shardGridEl.innerHTML = "";
+        
+        if (todayRows.length === 0) {
+            shardGridEl.innerHTML = '<div style="padding:40px; text-align:center; color:rgba(255,255,255,0.3); font-size:0.9rem;">今日暂无记忆碎片<br>请进入模块开始体验</div>';
+            genEchoBtn.style.display = 'none';
+            return;
+        }
+
+        genEchoBtn.style.display = 'block';
+
+        todayRows.forEach(row => {
+            const shard = document.createElement("div");
+            shard.className = "shard-item selected"; // Default selected
+            shard.dataset.id = row.id;
+            
+            shard.innerHTML = `
+                <div class="shard-icon">${getIconForType(row.type)}</div>
+                <div class="shard-title">${getNameForType(row.type)}</div>
+                <div class="shard-meta">${MM.formatTime(row.timestamp).split(" ")[1]}</div>
+            `;
+            
+            shard.addEventListener('click', () => {
+                shard.classList.toggle('selected');
+                updateEchoBtnState();
+            });
+            
+            shardGridEl.appendChild(shard);
+        });
+        
+        updateEchoBtnState();
+    }
+
+    function updateEchoBtnState() {
+        const selected = shardGridEl.querySelectorAll('.shard-item.selected');
+        genEchoBtn.disabled = selected.length === 0;
+        genEchoBtn.textContent = selected.length > 0 ? `聚合 ${selected.length} 个碎片` : "请选择碎片";
+    }
+
+    async function playRitualAnim() {
+        ritualOverlay.classList.add('active');
+        // Simple particle effect simulation
+        const container = document.getElementById('particles-container');
+        container.innerHTML = '';
+        for(let i=0; i<30; i++) {
+            const p = document.createElement('div');
+            p.style.position = 'absolute';
+            p.style.left = '50%'; p.style.top = '50%';
+            p.style.width = '4px'; p.style.height = '4px';
+            p.style.background = '#d4af37';
+            p.style.borderRadius = '50%';
+            p.style.transform = `translate(-50%, -50%) rotate(${Math.random()*360}deg) translate(${100 + Math.random()*200}px)`;
+            p.style.transition = 'all 2s ease-in';
+            container.appendChild(p);
+            
+            // Trigger convergence
+            setTimeout(() => {
+                p.style.transform = `translate(-50%, -50%)`;
+                p.style.opacity = 0;
+            }, 100);
+        }
+        await new Promise(r => setTimeout(r, 2000));
+        ritualOverlay.classList.remove('active');
+    }
+
+    async function generateEcho() {
+        const selectedEls = Array.from(shardGridEl.querySelectorAll('.shard-item.selected'));
+        if (!selectedEls.length) return;
+        
+        const ids = selectedEls.map(el => el.dataset.id);
+        const rows = MM.getAllRecords().filter(r => ids.includes(r.id));
+        
+        // Play Animation
+        await playRitualAnim();
+
+        genEchoBtn.disabled = true;
+        genEchoBtn.textContent = "正在连接命运...";
+        echoResultEl.style.display = 'block';
+        echoResultEl.innerHTML = '<div style="text-align:center; padding:20px;">正在解析全息数据...</div>';
+        echoResultEl.scrollIntoView({ behavior: 'smooth' });
+
+        try {
+            const date = new Date().toISOString().slice(0, 10);
+            const contentLines = rows.map((r, idx) => (
+              `# 碎片 ${idx + 1} [${getNameForType(r.type)}]:\n${(r.fullContent || "").slice(0, 1000)}`
+            ));
+    
+            const userPrompt = `日期：${date}\n\n检测到 ${contentLines.length} 个命运碎片：\n\n${contentLines.join("\n\n")}\n\n请执行【命运回响】聚合分析。`;
+    
+            const text = await MM.chat({
+              system: MM.getPromptOverride("history") || HISTORY_SYSTEM_DEFAULT,
+              user: userPrompt
+            });
+            
+            MM.renderMarkdown(echoResultEl, text);
+            
+            MM.saveRecord({
+              type: 'history',
+              summary: MM.summarize(`[命运回响] ${date}`, 50),
+              fullContent: text,
+              meta: { date, count: rows.length, sourceIds: ids }
+            });
+            
+            MM.status(echoStatusEl, "聚合完成", "ok");
+        } catch (e) {
+            MM.renderMarkdown(echoResultEl, `**错误**: ${e.message}`);
+            MM.status(echoStatusEl, "生成失败", "error");
+        } finally {
+            genEchoBtn.disabled = false;
+            updateEchoBtnState();
+        }
+    }
+    
+    MM.$("refresh-echo").addEventListener("click", loadShards);
+    MM.$("generate-echo").addEventListener("click", generateEcho);
+
+
+    // --- Global Init ---
     async function hydrate() {
       await MM.ready;
+      
       providerEl.value = MM.getApiProvider();
       tokenEl.value = MM.getToken();
       endpointEl.value = MM.getApiBaseUrl();
       modelEl.value = MM.getApiModel();
+      
       renderStats();
+      loadShards();
+      initMatrixBackground();
     }
 
     MM.$("save-api").addEventListener("click", () => {
@@ -132,14 +445,13 @@
       MM.setToken(tokenEl.value.trim());
       MM.setApiBaseUrl(endpointEl.value.trim());
       MM.setApiModel(modelEl.value.trim());
-      MM.status(statusEl, "接口配置已保存，下次启动仍有效", "ok");
+      MM.status(statusEl, "Saved.", "ok");
       renderStats();
     });
 
     MM.$("clear-api").addEventListener("click", () => {
       MM.setToken("");
       tokenEl.value = "";
-      MM.status(statusEl, "接口密钥已清空", "ok");
       renderStats();
     });
 
@@ -147,13 +459,12 @@
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         stream.getTracks().forEach((track) => track.stop());
-        MM.status(statusEl, "摄像头权限初始化完成，后续模块将复用授权", "ok");
+        MM.status(statusEl, "Camera Access Granted", "ok");
       } catch (err) {
-        MM.status(statusEl, `摄像头权限初始化失败：${err.message || err}`, "error");
+        MM.status(statusEl, `Error: ${err.message}`, "error");
       }
     });
 
-    MM.$("refresh-stats").addEventListener("click", renderStats);
 
     function initMatrixBackground() {
       const canvas = document.getElementById("matrix-bg");
@@ -162,8 +473,8 @@
       let height = 0;
       let cols = 0;
       let drops = [];
-      const chars = "乾坤震巽坎离艮兑金木水火土日月星辰阴阳命理玄";
-      const fontSize = 16;
+      const chars = "XYZ0192843"; /* Simpler chars for cyber look */
+      const fontSize = 14; 
 
       function resize() {
         width = canvas.width = window.innerWidth;
@@ -174,28 +485,30 @@
 
       let lastTime = 0;
       function draw(now) {
-        if (now - lastTime < 40) {
-          requestAnimationFrame(draw);
-          return;
+        if (now - lastTime < 50) {
+            requestAnimationFrame(draw);
+            return;
         }
         lastTime = now;
 
-        ctx.fillStyle = "rgba(5, 10, 26, 0.16)";
+        ctx.fillStyle = "rgba(5, 10, 20, 0.1)"; /* Keep trails */
         ctx.fillRect(0, 0, width, height);
 
-        ctx.font = `${fontSize}px 'PingFang SC', 'Microsoft YaHei', sans-serif`;
+        ctx.font = `${fontSize}px monospace`;
         for (let i = 0; i < cols; i += 1) {
           const char = chars[Math.floor(Math.random() * chars.length)];
           const x = i * fontSize;
           const y = drops[i] * fontSize;
-          const alpha = 0.25 + Math.random() * 0.45;
-          ctx.fillStyle = `rgba(130, 215, 255, ${alpha})`;
+          
+          const isGold = Math.random() > 0.98;
+          ctx.fillStyle = isGold ? '#d4af37' : 'rgba(100, 150, 200, 0.3)';
+          
           ctx.fillText(char, x, y);
 
-          if (y > height + Math.random() * 120) {
+          if (y > height + Math.random() * 200) {
             drops[i] = Math.random() * -20;
           }
-          drops[i] += 0.72;
+          drops[i] += 1;
         }
 
         requestAnimationFrame(draw);
@@ -207,7 +520,6 @@
     }
 
     hydrate();
-    initMatrixBackground();
   </script>
 </body>
 </html>

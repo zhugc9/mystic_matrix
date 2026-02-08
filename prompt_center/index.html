@@ -4,42 +4,149 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>提示词中心</title>
-  <link rel="stylesheet" href="../common/styles.css" />
-  <script src="../common/storage.js"></script>
-  <script src="../common/app.js"></script>
-  <script src="../common/immersive.js"></script>
+  <style>
+    /* Astro Style Clone */
+    :root {
+        --bg-dark: #050510;
+        --accent-gold: #d4af37;
+        --accent-glow: rgba(212, 175, 55, 0.6);
+    }
+    body {
+        background-color: var(--bg-dark);
+        font-family: 'Segoe UI', sans-serif;
+        color: #eee;
+        overflow: hidden;
+    }
+    #stars-canvas {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        z-index: -1; opacity: 0.6; pointer-events: none;
+    }
+    
+    /* Astro Header */
+    .topbar {
+        height: 80px;
+        display: flex; align-items: center; justify-content: center;
+        position: relative;
+    }
+    .title {
+        color: #d4af37; text-align: center; font-size: 2.2rem; margin: 0;
+        font-family: 'Cinzel', serif; letter-spacing: 4px;
+        text-shadow: 0 0 10px rgba(212,175,55,0.5);
+    }
+    .subtitle {
+        color: rgba(255,255,255,0.6); text-align: center; 
+        font-size: 0.8rem; letter-spacing: 2px;
+    }
+    .back-btn {
+        position: absolute; left: 30px; color: rgba(255,255,255,0.6); text-decoration: none;
+        letter-spacing: 1px; transition: 0.3s;
+    }
+    .back-btn:hover { color: #d4af37; }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px 20px;
+        height: calc(100vh - 100px);
+        display: flex; gap: 20px;
+    }
+
+    /* Astro Glass Card */
+    .glass-card {
+        background: rgba(16, 20, 43, 0.85);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 30px rgba(0,0,0,0.4);
+        display: flex; flex-direction: column;
+        overflow: hidden;
+    }
+
+    .sidebar { width: 280px; }
+    .main-area { flex: 1; }
+
+    .panel-header {
+        padding: 15px 20px;
+        border-bottom: 1px solid rgba(212,175,55,0.2);
+    }
+    .panel-header h2 { margin: 0; color: #d4af37; font-size: 1.1rem; letter-spacing: 1px; }
+
+    .module-item {
+        padding: 15px 20px;
+        border: none;
+        background: transparent;
+        color: #aaa;
+        width: 100%; text-align: left;
+        font-size: 1rem;
+        cursor: pointer;
+        border-right: 3px solid transparent;
+        transition: 0.2s;
+    }
+    .module-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .module-item.active {
+        background: rgba(212, 175, 55, 0.15);
+        color: #d4af37;
+        border-right-color: #d4af37;
+    }
+
+    textarea {
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.3) !important;
+        border: none !important;
+        color: #ddd !important;
+        padding: 20px; box-sizing: border-box;
+        font-family: monospace; font-size: 1rem; line-height: 1.6;
+        resize: none; outline: none;
+    }
+
+    .controls {
+        padding: 15px 20px;
+        display: flex; gap: 15px; align-items: center;
+        border-top: 1px solid rgba(212,175,55,0.2);
+    }
+    
+    .btn {
+        background: rgba(0,0,0,0.6);
+        border: 1px solid #d4af37;
+        color: #d4af37;
+        padding: 8px 24px;
+        border-radius: 30px;
+        cursor: pointer; transition: 0.3s;
+    }
+    .btn:hover { background: #d4af37; color: #000; }
+  </style>
 </head>
 <body>
+  <canvas id="stars-canvas"></canvas>
+
   <header class="topbar">
-    <h1 class="title">提示词中心</h1>
-    <div class="module-entry">
-      <a href="../index.html">返回首页</a>
-      <a href="../tarot/index.html">神秘塔罗</a>
-      <a href="../iching/index.html">赛博易经</a>
-      <a href="../palmistry/index.html">智能手相</a>
-      <a href="../face_reading/index.html">智能面相</a>
-      <a href="../astro/index.html">星盘实验室</a>
-      <a href="../history/index.html">命运回响</a>
+    <a href="../index.html" class="back-btn">← 返回大厅</a>
+    <div>
+      <h1 class="title">提示词中心</h1>
+      <div class="subtitle">PROMPT MATRIX</div>
     </div>
   </header>
 
   <main class="container">
-    <section class="card panel-split">
-      <aside>
-        <h2>模块列表</h2>
-        <div class="module-list" id="module-list"></div>
-      </aside>
+    <section class="glass-card sidebar">
+      <div class="panel-header">
+        <h2>系统模块</h2>
+      </div>
+      <div id="module-list" style="overflow-y:auto; flex:1;"></div>
+    </section>
 
-      <section>
-        <div class="editor-title" id="editor-title">提示词</div>
-        <label for="prompt-editor">系统提示词</label>
-        <textarea id="prompt-editor"></textarea>
-        <div class="controls">
-          <button class="btn primary" id="save-btn">保存并生效</button>
-          <button class="btn" id="reset-btn">恢复默认</button>
-        </div>
-        <div class="status" id="status"></div>
-      </section>
+    <section class="glass-card main-area">
+      <div class="panel-header" style="display:flex; justify-content:space-between;">
+        <h2 id="editor-title">系统提示词</h2>
+        <span id="status" style="font-size:0.8rem; color:#d4af37;"></span>
+      </div>
+      <div style="flex:1; position:relative;">
+        <textarea id="prompt-editor" spellcheck="false"></textarea>
+      </div>
+      <div class="controls">
+        <button class="btn" id="save-btn">保存生效</button>
+        <button class="btn" id="reset-btn" style="border-style:dashed; opacity:0.7;">恢复默认</button>
+      </div>
     </section>
   </main>
 
@@ -68,68 +175,64 @@
     const titleEl = MM.$("editor-title");
     const statusEl = MM.$("status");
 
-    function extractSystemPrompt(rawJs) {
-      const match = rawJs.match(/system\s*:\s*`([\s\S]*?)`,/);
-      return match ? match[1] : "";
-    }
+    // --- Prompt Loading Mechanism ---
+    // Intercept window.PROMPTS assignment to capture data from module scripts
+    let currentLoadingKey = null;
+    let _promptsVal = null;
+    
+    Object.defineProperty(window, 'PROMPTS', {
+        get: function() { return _promptsVal; },
+        set: function(val) {
+            _promptsVal = val;
+            if (currentLoadingKey && val && val.system) {
+                defaults[currentLoadingKey] = val.system;
+            }
+        },
+        configurable: true
+    });
 
-    async function loadDefaultPrompt(moduleItem) {
-      if (!moduleItem.source) return defaultHistoryPrompt;
-      const res = await fetch(moduleItem.source, { cache: "no-store" });
-      if (!res.ok) return "";
-      const raw = await res.text();
-      return extractSystemPrompt(raw);
-    }
-
-    function getModuleByKey(key) {
-      return modules.find((item) => item.key === key) || modules[0];
-    }
-
-    function renderModuleList() {
-      listEl.innerHTML = "";
-      modules.forEach((mod) => {
-        const btn = document.createElement("button");
-        btn.className = `module-item${mod.key === activeKey ? " active" : ""}`;
-        btn.textContent = mod.label;
-        btn.addEventListener("click", () => {
-          activeKey = mod.key;
-          renderModuleList();
-          renderEditor();
+    async function loadModulePrompt(mod) {
+        if (!mod.source) {
+            defaults[mod.key] = defaultHistoryPrompt; 
+            return;
+        }
+        
+        return new Promise((resolve) => {
+            currentLoadingKey = mod.key;
+            const script = document.createElement('script');
+            script.src = mod.source;
+            script.onload = () => {
+                currentLoadingKey = null;
+                resolve();
+            };
+            script.onerror = () => {
+                console.warn(`Failed to load prompts for ${mod.key}`);
+                defaults[mod.key] = "";
+                currentLoadingKey = null;
+                resolve();
+            };
+            document.body.appendChild(script);
         });
-        listEl.appendChild(btn);
-      });
     }
-
-    function renderEditor() {
-      const mod = getModuleByKey(activeKey);
-      const custom = MM.getPromptOverride(activeKey);
-      editorEl.value = custom || defaults[activeKey] || "";
-      titleEl.textContent = `${mod.label} · 系统提示词`;
-    }
-
-    MM.$("save-btn").addEventListener("click", () => {
-      MM.setPromptOverride(activeKey, editorEl.value);
-      MM.status(statusEl, "提示词已保存，下次调用立即生效", "ok");
-    });
-
-    MM.$("reset-btn").addEventListener("click", () => {
-      MM.clearPromptOverride(activeKey);
-      renderEditor();
-      MM.status(statusEl, "已恢复默认提示词", "ok");
-    });
 
     async function init() {
       await MM.ready;
+      // Load sequentially to avoid race conditions on window.PROMPTS
       for (const mod of modules) {
-        try {
-          defaults[mod.key] = await loadDefaultPrompt(mod);
-        } catch {
-          defaults[mod.key] = "";
-        }
+        await loadModulePrompt(mod);
       }
       renderModuleList();
       renderEditor();
     }
+
+    // --- Stars ---
+    const canvas = document.getElementById('stars-canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height, stars=[];
+    function resize(){ width=canvas.width=window.innerWidth; height=canvas.height=window.innerHeight; initStars(); }
+    function initStars(){ stars.length=0; for(let i=0;i<width*height/6000;i++) stars.push({x:Math.random()*width, y:Math.random()*height, r:Math.random()*1.5, a:Math.random(), s:0.01+Math.random()*0.02}); }
+    function drawStars(){ ctx.clearRect(0,0,width,height); ctx.fillStyle="#fff"; stars.forEach(s=>{ s.a+=s.s; if(s.a>1||s.a<0)s.s=-s.s; ctx.globalAlpha=Math.abs(s.a); ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); }); requestAnimationFrame(drawStars); }
+    window.addEventListener('resize',resize); resize(); drawStars();
 
     init();
   </script>

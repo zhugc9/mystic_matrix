@@ -9,216 +9,404 @@
   <script src="../common/storage.js"></script>
   <script src="../common/app.js"></script>
   <script src="../common/immersive.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* Astro Style Clone */
+    :root {
+        --bg-dark: #050510;
+        --accent-gold: #d4af37;
+        --accent-glow: rgba(212, 175, 55, 0.6);
+    }
+
+    body {
+        background-color: var(--bg-dark);
+        color: #eee;
+        font-family: 'Segoe UI', sans-serif;
+        margin: 0; padding: 0;
+        overflow: hidden;
+    }
+
+    /* Star Background */
+    #stars-canvas {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        z-index: -1; pointer-events: none; opacity: 0.6;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-gold); }
+
+    /* Astro-like Header */
+    .topbar {
+        height: 80px; /* Taller like Astro */
+        display: flex; align-items: center; justify-content: center; /* Center like Astro */
+        position: relative;
+        z-index: 100;
+        margin-bottom: 10px;
+    }
+    .topbar h1 {
+        color: #d4af37;
+        font-size: 2.5rem;
+        letter-spacing: 4px;
+        text-shadow: 0 0 10px rgba(212,175,55,0.5);
+        font-family: 'Cinzel', serif;
+        margin: 0;
+    }
+    .subtitle {
+        color: rgba(255,255,255,0.6);
+        font-size: 0.8rem;
+        letter-spacing: 2px;
+        margin-top: 5px;
+        text-transform: uppercase;
+        display: block;
+        text-align: center;
+    }
+    
+    .nav-btn {
+        position: absolute;
+        top: 30px; left: 30px; /* Absolute navigation */
+        color: rgba(255,255,255,0.6);
+        text-decoration: none;
+        text-transform: uppercase;
+        font-size: 0.9rem;
+        letter-spacing: 2px;
+        transition: color 0.3s;
+    }
+    .nav-btn:hover { color: #d4af37; text-shadow: 0 0 8px var(--accent-glow); }
+
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 20px 20px;
+        height: calc(100vh - 100px);
+        box-sizing: border-box;
+        display: flex; flex-direction: column; gap: 20px;
+    }
+
+    /* Astro Profile Card Style */
+    .glass-card {
+        background: rgba(16, 20, 43, 0.85); /* Darker glass matches Astro */
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 8px; /* Astro uses default or 8px usually */
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 30px rgba(0,0,0,0.4);
+        display: flex; flex-direction: column;
+    }
+
+    /* Input Overrides from Astro */
+    input, select {
+        background: rgba(0,0,0,0.4) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        color: #fff !important;
+        border-radius: 6px !important;
+        padding: 8px 12px;
+        font-family: monospace;
+        outline: none;
+    }
+    input:focus, select:focus {
+        border-color: #d4af37 !important;
+    }
+
+    /* Buttons (Astro Style) */
+    .btn {
+        background: rgba(0,0,0,0.6);
+        border: 1px solid #d4af37;
+        color: #d4af37;
+        padding: 8px 24px;
+        border-radius: 30px; /* Astro Pills */
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 0.9rem;
+        transition: all 0.3s; 
+        cursor: pointer;
+    }
+    .btn:hover:not(:disabled) {
+        background: #d4af37;
+        color: #000;
+        box-shadow: 0 0 15px rgba(212,175,55,0.4);
+    }
+    .btn.danger { border-color: #ff5555; color: #ff5555; }
+    .btn.danger:hover { background: #ff5555; color: #fff; }
+
+    /* Control Panel */
+    .control-panel {
+        padding: 15px 25px;
+        flex-direction: row;
+        align-items: center;
+        gap: 20px;
+        flex-shrink: 0;
+    }
+    .control-panel label {
+        color: #d4af37; font-size: 0.9rem; margin-right: 10px;
+    }
+
+    /* Split Layout */
+    .split-layout {
+        flex: 1; 
+        display: grid; 
+        grid-template-columns: 350px 1fr; 
+        gap: 20px; 
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Headers */
+    .panel-header {
+        padding: 15px 20px;
+        border-bottom: 1px solid rgba(212,175,55,0.2);
+    }
+    .panel-header h2 {
+        margin: 0; font-size: 1.2rem; color: #d4af37; letter-spacing: 1px; font-family: 'Cinzel', serif;
+    }
+
+    /* List Item */
+    .record {
+        margin: 10px 20px;
+        padding: 15px;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .record:hover {
+        background: rgba(212, 175, 55, 0.1);
+        border-color: rgba(212, 175, 55, 0.4);
+        transform: translateY(-2px);
+    }
+    .record.active {
+        background: rgba(212, 175, 55, 0.2);
+        border-color: #d4af37;
+        box-shadow: 0 0 15px rgba(212,175,55,0.1);
+    }
+    .record-title { color: #fff; font-size: 1rem; margin-bottom: 5px; }
+    .record-meta { color: #888; font-size: 0.8rem; font-family: monospace; }
+    .tag { 
+        display: inline-block; padding: 2px 6px; 
+        background: rgba(255,255,255,0.1); color: #ccc; 
+        border-radius: 4px; font-size: 0.7rem; margin-right: 8px; 
+    }
+
+    .result { padding: 20px 30px; color: #ddd; line-height: 1.8; font-size: 1rem; }
+    .result h1, .result h2 { color: #d4af37; border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 8px; margin-top: 1.5em; font-family: 'Cinzel', serif; }
+    .result strong { color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.2); }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+        .split-layout { grid-template-columns: 1fr; grid-template-rows: 300px 1fr; }
+        .topbar h1 { font-size: 1.8rem; }
+        .control-panel { flex-wrap: wrap; }
+    }
+  </style>
 </head>
 <body>
+  <canvas id="stars-canvas"></canvas>
+
   <header class="topbar">
-    <div>
+    <a href="../index.html" class="nav-btn">← 返回大厅</a>
+    <div style="text-align:center;">
       <h1 class="title">命运回响</h1>
-      <p class="subtitle">统一查看历史记录，进行跨模块命理聚合。</p>
+      <span class="subtitle">ARCHIVE & ECHO</span>
     </div>
-    <nav class="nav">
-      <a href="../index.html">主页</a>
-      <a href="../prompt_center/index.html">提示词中心</a>
-      <a href="../tarot/index.html">塔罗</a>
-      <a href="../iching/index.html">易经</a>
-      <a href="../palmistry/index.html">手相</a>
-      <a href="../face_reading/index.html">面相</a>
-      <a href="../astro/index.html">星盘</a>
-    </nav>
   </header>
 
   <main class="container">
-    <section class="card">
-      <h2>聚合流程</h2>
-      <div class="ritual-steps">
-        <div class="ritual-step active">1. 选择日期与类型</div>
-        <div class="ritual-step">2. 执行命运大聚合</div>
-        <div class="ritual-step">3. 生成可执行建议</div>
+    
+    <!-- Controls (Astro Style Bar) -->
+    <section class="glass-card control-panel">
+      <div style="display:flex; align-items:center;">
+          <label>筛选:</label>
+          <select id="filterType" style="width:120px;">
+            <option value="">全部模块</option>
+            <option value="tarot">塔罗</option>
+            <option value="iching">易经</option>
+            <option value="palmistry">手相</option>
+            <option value="face">面相</option>
+            <option value="astro">星盘</option>
+            <option value="history">聚合报告</option>
+          </select>
       </div>
-    </section>
-
-    <section class="card grid cols-2">
-      <div>
-        <label for="filterType">类型筛选</label>
-        <select id="filterType">
-          <option value="">全部</option>
-          <option value="tarot">塔罗</option>
-          <option value="iching">易经</option>
-          <option value="palmistry">手相</option>
-          <option value="face">面相</option>
-          <option value="astro">星盘</option>
-          <option value="history">聚合报告</option>
-        </select>
-      </div>
-      <div>
-        <label for="filterDate">日期筛选</label>
-        <input id="filterDate" type="date" />
-      </div>
-      <div class="controls">
+      
+      <div style="flex:1;"></div>
+      
+      <div style="display:flex; gap:15px;">
         <button class="btn" id="refresh">刷新</button>
-        <button class="btn primary" id="aggregate">命运大聚合</button>
-        <button class="btn" id="export">导出 JSON</button>
-        <button class="btn danger" id="clear">清空全部记录</button>
-        <a class="btn" href="../index.html">前往主页配置接口</a>
+        <button class="btn" id="aggregate" style="border-color:#d4af37;">命运聚合</button>
+        <button class="btn" id="export">导出</button>
+        <button class="btn danger" id="clear">清空</button>
       </div>
-      <div id="status" class="status"></div>
     </section>
 
-    <section class="card">
-      <h2>记录列表</h2>
-      <div id="list" class="list"></div>
-    </section>
+    <!-- Split Content -->
+    <div class="split-layout">
+      <!-- List -->
+      <section class="glass-card">
+        <div class="panel-header">
+            <h2>记录档案</h2>
+        </div>
+        <div id="list" style="flex:1; overflow-y:auto; padding:10px 0;"></div>
+      </section>
 
-    <section class="card">
-      <h2>详情 / 聚合结果</h2>
-      <div id="detail" class="result"></div>
-    </section>
+      <!-- Detail -->
+      <section class="glass-card">
+        <div class="panel-header">
+            <h2>全息详情</h2>
+        </div>
+        <div id="detail" class="result" style="flex:1; overflow-y:auto;">
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.3;">
+                <span style="font-size:4rem; margin-bottom:20px;">📜</span>
+                <p>请选择左侧记录</p>
+            </div>
+        </div>
+      </section>
+    </div>
   </main>
 
   <script>
-    const statusEl = MM.$("status");
-    const listEl = MM.$("list");
-    const detailEl = MM.$("detail");
+    // --- Stars ---
+    const canvas = document.getElementById('stars-canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height, stars=[];
+    function resize(){ width=canvas.width=window.innerWidth; height=canvas.height=window.innerHeight; initStars(); }
+    function initStars(){ stars.length=0; for(let i=0;i<width*height/6000;i++) stars.push({x:Math.random()*width, y:Math.random()*height, r:Math.random()*1.5, a:Math.random(), s:0.01+Math.random()*0.02}); }
+    function drawStars(){ ctx.clearRect(0,0,width,height); ctx.fillStyle="#fff"; stars.forEach(s=>{ s.a+=s.s; if(s.a>1||s.a<0)s.s=-s.s; ctx.globalAlpha=Math.abs(s.a); ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); }); requestAnimationFrame(drawStars); }
+    window.addEventListener('resize',resize); resize(); drawStars();
 
-    const HISTORY_SYSTEM_DEFAULT = [
-      "你是赛博玄学矩阵的总分析师，负责将同一天的多模块占卜结果融合成可执行的生活策略。",
-      "你必须先识别每条记录的核心信号（风险、机会、情绪、行动倾向），再跨模块交叉验证，找出一致结论与冲突结论。",
-      "输出结构必须包含：一、今日总运势判定；二、事业、财运、情感、健康四大板块；三、冲突信号解释；四、24小时行动清单；五、禁忌与止损建议。",
-      "每个板块都要给出明确优先级（高/中/低）与时间窗口（上午/下午/夜间），避免空泛描述。",
-      "如果样本存在互相矛盾的判断，你要显式标注矛盾来源并给出折中策略，而不是只取其一。",
-      "语言风格保持神秘学仪式感，但建议必须落地可执行，优先使用短句和清单。"
-    ].join("\n");
+    // --- History Logic ---
+    let allRecords = [];
 
-    function readFilters() {
-      return {
-        type: MM.$("filterType").value,
-        date: MM.$("filterDate").value
-      };
+    async function init() {
+        await MM.ready;
+        loadRecords();
+        setupEvents();
     }
 
-    function getFiltered() {
-      const { type, date } = readFilters();
-      let rows = MM.getAllRecords();
-      if (type) rows = rows.filter((r) => r.type === type);
-      if (date) rows = rows.filter((r) => String(r.timestamp || "").startsWith(date));
-      rows.sort((a, b) => String(b.timestamp || "").localeCompare(String(a.timestamp || "")));
-      return rows;
+    function loadRecords() {
+        allRecords = MM.getAllRecords();
+        renderList();
     }
 
     function renderList() {
-      const rows = getFiltered();
-      listEl.innerHTML = "";
-      if (!rows.length) {
-        listEl.innerHTML = '<div class="kv-item">暂无记录</div>';
-        return;
-      }
-
-      rows.forEach((row) => {
-        const item = document.createElement("div");
-        item.className = "record";
-
-        const title = document.createElement("h4");
-        title.textContent = `[${row.type}] ${row.summary || "无摘要"}`;
-
-        const meta = document.createElement("div");
-        meta.className = "record-meta";
-        meta.textContent = `${MM.formatTime(row.timestamp)} | ID: ${row.id}`;
-
-        const controls = document.createElement("div");
-        controls.className = "controls";
-
-        const viewBtn = document.createElement("button");
-        viewBtn.className = "btn";
-        viewBtn.textContent = "查看详情";
-        viewBtn.addEventListener("click", () => MM.renderMarkdown(detailEl, row.fullContent || ""));
-
-        const delBtn = document.createElement("button");
-        delBtn.className = "btn danger";
-        delBtn.textContent = "删除";
-        delBtn.addEventListener("click", () => {
-          MM.deleteRecord(row.id);
-          renderList();
-          MM.status(statusEl, "记录已删除", "ok");
+        const type = document.getElementById('filterType').value;
+        const date = document.getElementById('filterDate').value;
+        
+        let filtered = allRecords.filter(r => {
+            if(type && r.type !== type) return false;
+            // Date filter logic usually matches YYYY-MM-DD
+            if(date) {
+                const rDate = new Date(r.timestamp).toISOString().split('T')[0];
+                if(rDate !== date) return false;
+            }
+            return true;
         });
 
-        controls.appendChild(viewBtn);
-        controls.appendChild(delBtn);
-        item.appendChild(title);
-        item.appendChild(meta);
-        item.appendChild(controls);
-        listEl.appendChild(item);
-      });
+        // Sort descending
+        filtered.sort((a,b) => b.timestamp - a.timestamp);
+
+        const listEl = document.getElementById('list');
+        listEl.innerHTML = '';
+        
+        filtered.forEach(r => {
+            const el = document.createElement('div');
+            el.className = 'record';
+            const d = new Date(r.timestamp);
+            const timeStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2,'0')}`;
+            
+            el.innerHTML = `
+                <div style="display:flex; align-items:center; flex:1; min-width:0;">
+                   <input type="checkbox" class="record-checkbox" data-id="${r.id}" onclick="event.stopPropagation()" style="margin-right:10px;">
+                   <div style="flex:1;">
+                      <div class="record-title">
+                        <span class="tag">${r.type.toUpperCase()}</span>
+                        ${r.summary || '未命名记录'}
+                      </div>
+                      <div class="record-meta">${timeStr} · #${r.id.substring(0,6)}</div>
+                   </div>
+                </div>
+                <button class="btn text-danger icon-only" onclick="deleteRecord('${r.id}', event)">×</button>
+            `;
+            el.onclick = () => showDetail(r, el);
+            listEl.appendChild(el);
+        });
     }
 
-    MM.$("refresh").addEventListener("click", renderList);
-    MM.$("filterType").addEventListener("change", renderList);
-    MM.$("filterDate").addEventListener("change", renderList);
+    function showDetail(r, el) {
+        document.querySelectorAll('.record').forEach(e=>e.classList.remove('active'));
+        if(el) el.classList.add('active');
+        
+        const con = document.getElementById('detail');
+        con.innerHTML = '';
+        MM.renderMarkdown(con, r.fullContent || '(内容为空)');
+    }
 
-    MM.$("clear").addEventListener("click", () => {
-      MM.clearRecords();
-      detailEl.innerHTML = "";
-      renderList();
-      MM.status(statusEl, "已清空全部记录", "ok");
-    });
+    function setupEvents() {
+        document.getElementById('filterType').addEventListener('change', renderList);
+        document.getElementById('filterDate').addEventListener('change', renderList);
+        document.getElementById('refresh').addEventListener('click', loadRecords);
+        document.getElementById('clear').addEventListener('click', () => {
+             if(confirm('确定清空所有历史记录？不可恢复。')) {
+                 localStorage.removeItem('mm_history');
+                 loadRecords();
+                 document.getElementById('detail').innerHTML = '';
+             }
+        });
+        document.getElementById('aggregate').addEventListener('click', doAggregation);
+        document.getElementById('export').addEventListener('click', doExport);
+    }
 
-    MM.$("export").addEventListener("click", () => {
-      const rows = getFiltered();
-      const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `mystic_matrix_records_${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      MM.status(statusEl, `已导出 ${rows.length} 条记录`, "ok");
-    });
+    function deleteRecord(id, e) {
+        e.stopPropagation();
+        if(!confirm('删除此条记录？')) return;
+        MM.removeRecord(id);
+        loadRecords();
+        document.getElementById('detail').innerHTML = '';
+    }
 
-    MM.$("aggregate").addEventListener("click", async () => {
-      try {
-        const date = MM.$("filterDate").value || new Date().toISOString().slice(0, 10);
-        const rows = MM.getAllRecords().filter((r) => String(r.timestamp || "").startsWith(date) && r.type !== "history");
-
-        if (!rows.length) {
-          MM.status(statusEl, `${date} 没有记录可聚合`, "error");
-          return;
+    async function doAggregation() {
+        const checked = Array.from(document.querySelectorAll('.record-checkbox:checked')).map(c => c.dataset.id);
+        if(checked.length < 2) {
+            alert('请至少勾选2条记录进行聚合分析');
+            return;
         }
+        
+        const selectedRecords = allRecords.filter(r => checked.includes(r.id));
+        const statusEl = document.getElementById('status') || document.createElement('div'); // fallback
+        
+        const detailEl = document.getElementById('detail');
+        detailEl.innerHTML = '<div style="text-align:center; padding:50px;">正在进行命运聚合分析...<br>Destiny Aggregation in progress...</div>';
 
-        MM.status(statusEl, `正在聚合 ${rows.length} 条记录...`);
+        // Construct Aggregate Prompt
+        const inputs = selectedRecords.map(r => `[${r.type.toUpperCase()}] ${new Date(r.timestamp).toLocaleString()}\nSummary: ${r.summary}\nContent: ${r.fullContent}`).join('\n\n---\n\n');
+        
+        const sysPrompt = await MM.getPrompt('history') || "You are the Mystic Matrix Aggregator. Analyze the provided records and find connections, contradictions, and an overall destiny guidance.";
+        const userPrompt = `Analysis Request: Aggregate the following ${checked.length} records into a cohesive life strategy report.\n\n${inputs}`;
 
-        const contentLines = rows.map((r, idx) => (
-          `${idx + 1}. [${r.type}] ${r.summary}\n${(r.fullContent || "").slice(0, 900)}`
-        ));
-
-        const userPrompt = `请综合分析以下同一天的命理记录，输出“总运势+四板块+冲突处理+行动清单+禁忌”：\n\n日期：${date}\n\n${contentLines.join("\n\n")}`;
-
-        const text = await MM.chat({
-          system: MM.getPromptOverride("history") || HISTORY_SYSTEM_DEFAULT,
-          user: userPrompt
-        });
-
-        MM.renderMarkdown(detailEl, text);
-        MM.saveRecord({
-          type: "history",
-          summary: MM.summarize(`${date} 命运大聚合`, 90),
-          fullContent: text,
-          meta: { date, count: rows.length }
-        });
-
-        MM.status(statusEl, "聚合完成并已存档", "ok");
-        renderList();
-      } catch (err) {
-        MM.status(statusEl, err.message || String(err), "error");
-      }
-    });
-
-    async function initPage() {
-      await MM.ready;
-      renderList();
+        try {
+            const text = await MM.chat({ system: sysPrompt, user: userPrompt });
+            MM.renderMarkdown(detailEl, text);
+            
+            // Save aggregation result? Optional. User might want to save it.
+            // For now just display.
+        } catch(e) {
+            detailEl.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+        }
     }
 
-    initPage();
+    function doExport() {
+        const data = JSON.stringify(allRecords, null, 2);
+        const blob = new Blob([data], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mystic_matrix_export_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+    }
+
+    init();
   </script>
 </body>
 </html>
